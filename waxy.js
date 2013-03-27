@@ -212,10 +212,11 @@ var WaxyGenerator = (function(opts) {
   var grounded = function (x,y,z,searchedR) {
     //console.log('WG.grounded')
     if(y===0) {
+      //note: MapProperties.indexOf(ground_map_property) === 2
       data.data[x,y,z,2] = true
       return true
     }
-    if(data.map(x,y,z,GRND_MAP_PROP)) {return true;}
+    if(data.map(x,y,z,2)) {return true;}
     if(!data.isEmpty(x,y,z) && data.tempMap(x,y,z) <= freezing) { 
      //don't search the same spot twice
       var searched = (searchedR.length>0)?searchedR:{}
