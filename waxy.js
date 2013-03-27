@@ -212,7 +212,7 @@ var WaxyGenerator = (function(opts) {
   var grounded = function (x,y,z,searchedR) {
     //console.log('WG.grounded')
     if(y===0) {
-      data.map(x,y,z,GRND_MAP_PROP) = true
+      data.data[x,y,z,2] = true
       return true
     }
     if(data.map(x,y,z,GRND_MAP_PROP)) {return true;}
@@ -220,11 +220,13 @@ var WaxyGenerator = (function(opts) {
      //don't search the same spot twice
       var searched = (searchedR.length>0)?searchedR:{}
       var neighbors = new ConnectedPoint({x:x, y:y, z:z})
+      var branch
       for(facet in neighbors.facets) {
-        if(searched.indexOf(facet) < 0) {
-          searched.push(facet)
-          var isG = grounded(facet.x, facet.y, facet.z, searched)
-          data.map(facet.x, facet.y, facet.z, GRND_MAP_PROP)=isG
+        branch = neighbors.facets[facet]
+        if(searched.indexOf(branch) < 0) {
+          searched.push(branch)
+          var isG = grounded(branch.x, branch.y, branch.z, searched)
+          data.data[branch.x, branch.y, branch.z, 2] = isG
         }
       }
     }
