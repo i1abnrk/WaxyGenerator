@@ -211,7 +211,7 @@ var WaxyGenerator = (function(opts) {
   //the search can return a false negative (fuzzy logic)
   var grounded = function (x,y,z,searchedR) {
     //console.log('WG.grounded')
-    if(y===0) {
+    if(y===0 && !data.isEmpty(x,y,z)) {
       //note: MapProperties.indexOf(ground_map_property) === 2
       data.data[x,y,z,2] = true
       return true
