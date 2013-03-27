@@ -183,6 +183,7 @@ var DropSheet = (function(opts) {
   }
 })//end DropSheet
 
+//TODO: if a drop freezes it will fall until a not empty spot is below it
 //simulated annealing
 var WaxyGenerator = (function(opts) {
   console.log("WG.this")
@@ -194,21 +195,25 @@ var WaxyGenerator = (function(opts) {
   var floorTemp = opts.floorTemp || 0.0
   var bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
       new Point({x:80,y:80,z:80})]);
+
   //each property in propertyList has its own map data
   var propertyList = opts.propertyList || 
       [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue:0}),
       new MapProperty({key:TEMP_MAP_PROP, type:'double', defaultValue:freezing}), 
       new MapProperty({key:'grounded', type:'boolean', defaultValue:false})]
   var materials = opts.materials || ['grass', 'dirt', 'grass_dirt', 'obsidian', 'whitewool', 'brick']
+
   //map of data
   data = new MapData(bounds, propertyList)
+
   //create a drop sheet
   var sheetMaker= new DropSheet({width:bounds.width, depth:bounds.depth, rate:fillPercent})
+
   //a sudden death time index, based on z-height and conductivity
   //console.log('WG.bounds.height: ' + bounds.height)
   //console.log('initialTemp: ' + initialTemp)
   //console.log('conductivity: ' + conductivity)
-  var suddenDeath = bounds.height + Math.floor(initialTemp / conductivity)
+  var suddenDeath = (2 * bounds.height) + Math.floor(initialTemp / conductAir)
 
   //aliases suitable for dynamic list?
   var terrPropIndex = data.propKeys.indexOf(TERR_MAP_PROP)
@@ -236,7 +241,7 @@ var WaxyGenerator = (function(opts) {
         if(searched.indexOf(branch) < 0) {
           searched.push(branch)
           var isG = grounded(branch.x, branch.y, branch.z, searched)
-          data.data[branch.x, branch.y, branch.z, grndPropIndex] = isG
+          this.data.data[branch.x, branch.y, branch.z, grndPropIndex] = isG
         }
       }
     }
@@ -249,13 +254,13 @@ var WaxyGenerator = (function(opts) {
     //console.log('WG.calcTemp')
     if(location.y === 0){return floorTemp}
     var tree = new ConnectedPoint(location)
-    var oldTemp = data.map(tree.center.x, tree.center.y, tree.center.z, tempPropIndex)
+    var oldTemp = data.map(tree.center.x, tree.center.y, tree.center.z, TEMP_MAP_PROP)
     var sumTemps = 0.0
     var branch
     for(facet in tree.facets) {
       branch = tree.facets[facet]
       if(bounds.contains(branch)) {
-        sumTemps += data.map(branch.x, branch.y, branch.z, tempPropIndex)
+        sumTemps += data.map(branch.x, branch.y, branch.z, TEMP_MAP_PROP)
 	  } else {
         //out of bounds=floorTemp
         sumTemps = sumTemps + floorTemp
@@ -274,7 +279,7 @@ var WaxyGenerator = (function(opts) {
     var myNewTemp
     for(;bbIter.hasNext();) {
       nextSpot = bbIter.next()
-      nextTemp = data.map(nextPoint.x, nextPoint.y, nextPoint.z, tempPropIndex)
+      nextTemp = data.map(nextSpot.x, nextSpot.y, nextSpot.z, TEMP_MAP_PROP)
       if(data.isEmpty(nextSpot.x, nextSpot.y, nextSpot.z)) {
          //air
          myConductivity = conductAir
@@ -315,13 +320,13 @@ var WaxyGenerator = (function(opts) {
         newSpot=cspot.below      
     }
     //occupy newSpot and vacate spot
-    data.data[newSpot.x,newSpot.y,newSpot.z,data.propKeys.indexOf(TERR_MAP_PROP)]=terrain
-    data.data[newSpot.x,newSpot.y,newSpot.z,data.propKeys.indexOf(TEMP_MAP_PROP)]=temperature
-    data.data[newSpot.x,newSpot.y,newSpot.z,data.propKeys.indexOf(GRND_MAP_PROP)] = grounded(newSpot)
-    data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(TERR_MAP_PROP)]=0
-    data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(TEMP_MAP_PROP)]=
+    data.data[newSpot.x,newSpot.y,newSpot.z, data.propKeys.indexOf(TERR_MAP_PROP)]=terrain
+    data.data[newSpot.x,newSpot.y,newSpot.z, data.propKeys.indexOf(TEMP_MAP_PROP)]=temperature
+    data.data[newSpot.x,newSpot.y,newSpot.z, data.propKeys.indexOf(GRND_MAP_PROP)] = grounded(newSpot)
+    data.data[spot.x,spot.y,spot.z, data.propKeys.indexOf(TERR_MAP_PROP)]=0
+    data.data[spot.x,spot.y,spot.z, data.propKeys.indexOf(TEMP_MAP_PROP)]=
         calcTemp(spot.x, spot.y, spot.z, conductAir)
-    data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(GRND_MAP_PROP)]=false
+    data.data[spot.x,spot.y,spot.z, data.propKeys.indexOf(GRND_MAP_PROP)]=false
   }
 
   var moveDrops = function() {
@@ -332,10 +337,10 @@ var WaxyGenerator = (function(opts) {
       spot = bbIter.next()
       //!isEmpty === isTerrain
       if(!data.isEmpty(spot.x, spot.y, spot.z)) {
-        var temperature = data.tempMap(spot.x, spot.y, spot.z)
+        var temperature = data.map(spot.x, spot.y, spot.z, TEMP_MAP_PROP)
         //don't move if freezing and grounded
         if(temperature >= freezing || !grounded(spot.x, spot.y, spot.z, {})) {
-          var terrain = data.terrainMap(spot.x, spot.y, spot.z)
+          var terrain = data.map(spot.x, spot.y, spot.z, TERR_MAP_PROP)
           var neighbors = new ConnectedPoint(spot).facets
           var kinetic = Math.min(Math.random() * (temperature/freezing), 1.0)
           if(data.isEmpty(neighbors.below)) { move(spot,0) }
@@ -368,8 +373,8 @@ var WaxyGenerator = (function(opts) {
       for(var z=0;z<bounds.depth;z++) {
         if(nextSheet[index++]) {
           var nextTT=Math.floor(Math.random()*materials.length)+1
-          data.data[x,bounds.height,z,data.propKeys.indexOf(TERR_MAP_PROP)] = nextTT
-          data.data[x,bounds.height,z,data.propKeys.indexOf(TEMP_MAP_PROP)] = initialTemp
+          data.data[x,bounds.height,z, data.propKeys.indexOf(TERR_MAP_PROP)] = nextTT
+          data.data[x,bounds.height,z, data.propKeys.indexOf(TEMP_MAP_PROP)] = initialTemp
         }
       }
     }
@@ -393,7 +398,7 @@ var WaxyGenerator = (function(opts) {
   }//end generate
 })//end Generator
 
-var generator = new WaxyGenerator(
+this.generator = new WaxyGenerator(
   {initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
     conductWax: THERM_CON_WAX, freezing: 0.1,
     floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
@@ -438,4 +443,10 @@ var assertContains = function(obj, array) {
   var test = array.indexOf(obj) >= 0
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
-generator.generate()
+
+//data hook for voxel.js
+this.generate = function(x,y,z) {
+  return this.generator.data.map(x,y,z,TERR_MAP_PROP)
+}
+
+this.generator.generate()
