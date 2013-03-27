@@ -43,6 +43,7 @@ var ConnectedPoint = (function(dimensions){
 //TODO: validate objects
 //TODO: y=height, z=depth
 //a working set, rectangular prism
+
 var BoundingBox = (function(dimensions) {
   //console.log('BoundingBox')
   //validate(dimensions[0], 'Point')
@@ -208,6 +209,8 @@ var WaxyGenerator = (function(opts) {
   //console.log('initialTemp: ' + initialTemp)
   //console.log('conductivity: ' + conductivity)
   var suddenDeath = bounds.height + Math.floor(initialTemp / conductivity)
+
+  //aliases suitable for dynamic list?
   var terrPropIndex = data.propKeys.indexOf(TERR_MAP_PROP)
   var tempPropIndex = data.propKeys.indexOf(TEMP_MAP_PROP)
   var grndPropIndex = data.propKeys.indexOf(GRND_MAP_PROP)
@@ -316,7 +319,8 @@ var WaxyGenerator = (function(opts) {
     data.data[newSpot.x,newSpot.y,newSpot.z,data.propKeys.indexOf(TEMP_MAP_PROP)]=temperature
     data.data[newSpot.x,newSpot.y,newSpot.z,data.propKeys.indexOf(GRND_MAP_PROP)] = grounded(newSpot)
     data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(TERR_MAP_PROP)]=0
-    data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(TEMP_MAP_PROP)]=freezing
+    data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(TEMP_MAP_PROP)]=
+        calcTemp(spot.x, spot.y, spot.z, conductAir)
     data.data[spot.x,spot.y,spot.z,data.propKeys.indexOf(GRND_MAP_PROP)]=false
   }
 
