@@ -45,3 +45,8 @@ SPOT: temperature, six neighbors, empty, self
 DROP: initial temperature, current temperature, current age, current spot,
 
 FLOOR: z=0, temperature = FREEZING
+Related research: thermal conductivity of air = 0.024 k - W/m*K
+(Watts per meter-degree kelvin)
+Diatomaceous earth (Sil-o-cel) 0.06
+Paraffin Wax 0.25
+http://www.engineeringtoolbox.com/thermal-conductivity-d_429.html

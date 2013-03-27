@@ -1,6 +1,8 @@
 const TEMP_MAP_PROP = 'temperature'
 const TERR_MAP_PROP = 'terrain'
 const GRND_MAP_PROP = 'grounded'
+const THERM_CON_AIR = 0.024
+const THERM_CON_WAX = 0.25
 
 //A wrapper class for an int triple
 var Point = (function(dimensions) {
@@ -185,7 +187,8 @@ var WaxyGenerator = (function(opts) {
   console.log("WG.this")
   var initialTemp = opts.initialTemp || 1.0
   var fillPercent = opts.fillPercent || 0.35
-  var conductivity = opts.conductivity || 0.04
+  var conductAir = opts.conductAir || THERM_CON_AIR
+  var conductWax = opts.conductWax || THERM_CON_WAX
   var freezing = opts.freezing || 0.1
   var floorTemp = opts.floorTemp || 0.0
   var bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
@@ -205,6 +208,9 @@ var WaxyGenerator = (function(opts) {
   //console.log('initialTemp: ' + initialTemp)
   //console.log('conductivity: ' + conductivity)
   var suddenDeath = bounds.height + Math.floor(initialTemp / conductivity)
+  var terrPropIndex = data.propKeys.indexOf(TERR_MAP_PROP)
+  var tempPropIndex = data.propKeys.indexOf(TEMP_MAP_PROP)
+  var grndPropIndex = data.propKeys.indexOf(GRND_MAP_PROP)
 
   //a drop is grounded if it is recursively connected to the floor and freezing
   //uses a recursion trick, pass empty brackets {} for searchedR on first call
@@ -213,10 +219,10 @@ var WaxyGenerator = (function(opts) {
     //console.log('WG.grounded')
     if(y===0 && !data.isEmpty(x,y,z)) {
       //note: MapProperties.indexOf(ground_map_property) === 2
-      data.data[x,y,z,2] = true
+      data.data[x, y, z, grndPropIndex] = true
       return true
     }
-    if(data.map(x,y,z,2)) {return true;}
+    if(data.map(x, y, z, grndPropIndex)) {return true;}
     if(!data.isEmpty(x,y,z) && data.tempMap(x,y,z) <= freezing) { 
      //don't search the same spot twice
       var searched = (searchedR.length>0)?searchedR:{}
@@ -227,7 +233,7 @@ var WaxyGenerator = (function(opts) {
         if(searched.indexOf(branch) < 0) {
           searched.push(branch)
           var isG = grounded(branch.x, branch.y, branch.z, searched)
-          data.data[branch.x, branch.y, branch.z, 2] = isG
+          data.data[branch.x, branch.y, branch.z, grndPropIndex] = isG
         }
       }
     }
@@ -236,46 +242,45 @@ var WaxyGenerator = (function(opts) {
 
   //todo: simulate annealing
   //simulate a drop forge
-  var calcTemp = function(drop, location){
+  var calcTemp = function(location, conductivity) {
     //console.log('WG.calcTemp')
     if(location.y === 0){return floorTemp}
     var tree = new ConnectedPoint(location)
-    var oldTemp = data.tempMap(tree.center.x, tree.center.y, tree.center.z)
+    var oldTemp = data.map(tree.center.x, tree.center.y, tree.center.z, tempPropIndex)
     var sumTemps = 0.0
     var branch
     for(facet in tree.facets) {
       branch = tree.facets[facet]
       if(bounds.contains(branch)) {
-        if(data.isEmpty(branch.x, branch.y, branch.z)) {
-          sumTemps = sumTemps + freezing
-		} else {
-          sumTemps = sumTemps + data.map(branch.x, branch.y, branch.z, TEMP_MAP_PROP)
-		}
+        sumTemps += data.map(branch.x, branch.y, branch.z, tempPropIndex)
 	  } else {
-        sumTemps = sumTemps + freezing
+        //out of bounds=floorTemp
+        sumTemps = sumTemps + floorTemp
 	  }
     }
     var meanTemp = sumTemps / tree.facets.length
     var nextTemp = oldTemp + (conductivity * (meanTemp - oldTemp))
-    data.data[tree.center.x, tree.center.y, tree.center.z,
-        data.propKeys.indexOf(TEMP_MAP_PROP)] = nextTemp
   }//end calcTemp
 
   var updateTemperatures = function() {
     //console.log('WG.updateTemperatures')
     var bbIter = bounds.iterator()
-    var nextPoint
-    var nextDrop
+    var nextSpot
     var nextTemp
+    var neighborTemp
+    var myNewTemp
     for(;bbIter.hasNext();) {
-      nextPoint = bbIter.next()
-      nextTemp = data.tempMap(nextPoint.x, nextPoint.y, nextPoint.z)
-      if(data.isEmpty(nextPoint.x, nextPoint.y, nextPoint.z)){
-         nextTemp = freezing
+      nextSpot = bbIter.next()
+      nextTemp = data.map(nextPoint.x, nextPoint.y, nextPoint.z, tempPropIndex)
+      if(data.isEmpty(nextSpot.x, nextSpot.y, nextSpot.z)) {
+         //air
+         myConductivity = conductAir
       } else {
-        nextDrop = data.terrainMap(nextPoint.x, nextPoint.y, nextPoint.z)
-        calcTemp(nextDrop,nextPoint)
+        //wax
+        myConductivity = conductWax
       }
+      myNewTemp = calcTemp(nextSpot, myConductivity)
+      data.data[nextSpot.x, nextSpot.y, nextSpot.z, tempPropIndex] = myNewTemp
     }
   }//end updateT
   
@@ -385,13 +390,14 @@ var WaxyGenerator = (function(opts) {
 })//end Generator
 
 var generator = new WaxyGenerator(
-  {initialTemp:1.0, fillPercent: 0.35, conductivity: 0.04, freezing: 0.1,
+  {initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
+    conductWax: THERM_CON_WAX, freezing: 0.1,
     floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
         new Point({x:80,y:80,z:80})]),
     materials:['grass', 'dirt', 'grass_dirt', 'obsidian', 'whitewool', 'brick'],
     propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
       new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
-      new MapProperty({key:'grounded', type:'boolean', defaultValue: false})]
+      new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
   })
 //test suite
 var validate = function(obj, type) {
