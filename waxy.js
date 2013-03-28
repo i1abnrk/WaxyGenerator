@@ -193,7 +193,7 @@ var WaxyGenerator = (function(opts) {
   var conductWax = opts.conductWax || THERM_CON_WAX
   var freezing = opts.freezing || 0.1
   var floorTemp = opts.floorTemp || 0.0
-  var bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
+  bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
       new Point({x:80,y:80,z:80})]);
 
   //each property in propertyList has its own map data
@@ -385,6 +385,7 @@ var WaxyGenerator = (function(opts) {
 	//main loop
     for(var i = 0; i <= suddenDeath; i++){
       console.log('t='+i+'/'+suddenDeath)
+      //document.getElementById('output').innerHTML=('t='+i+'/'+suddenDeath)
       //update temperatures
       updateTemperatures()
       //move drops
@@ -402,7 +403,7 @@ this.generator = new WaxyGenerator(
   {initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
     conductWax: THERM_CON_WAX, freezing: 0.1,
     floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
-        new Point({x:80,y:80,z:80})]),
+        new Point({x:32,y:32,z:32})]),
     materials:['grass', 'dirt', 'grass_dirt', 'obsidian', 'whitewool', 'brick'],
     propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
       new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
@@ -444,9 +445,11 @@ var assertContains = function(obj, array) {
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
 
+this.generator.generate()
+
 //data hook for voxel.js
-this.generate = function(x,y,z) {
+this.iterate = function(x,y,z) {
   return this.generator.data.map(x,y,z,TERR_MAP_PROP)
 }
 
-this.generator.generate()
+module.export.iterate = this.iterate()
