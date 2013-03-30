@@ -14,7 +14,7 @@ Point: a wrapper class for an x,y,z triple. Constructor takes arguments {x,y,z},
 noargs produces Point(0,0,0). Method translate returns a new Point instance that
 is the specified x,y,z distance away from the current instance. For a Point _p1_ at
 (1,-2,-3) a call to _p1_.translate({x:4,y:-5,z:6}) returns a new Point _p2_ with
-coordinates {x:5,y:-7,z:3}  
+coordinates {x:5,y:-7,z:3} It is roughly equivalent to a voxel.  
 
 ConnectedPoint: a Point with reference to 6 neighbors: below, north,
 south, east, west and above. An array of all 6 (and not center) is returned with 
@@ -29,12 +29,19 @@ methods: contains and intersects. _contains_ returns true if all of the Points
 in parameter _other_ are within the instance. _intersects_ returns true if some 
 or all of the parameter lies within bounds of the instance. The method 
 _iterator_ returns an instance of _BoxIterator_ for iterating over the bounds of 
-the instance it is called from.  
+the instance it is called from. It is similar to a voxel chunk.  
 
 BoxIterator: an Iterator starting at lowerBound and proceeding through
 each integer point until upperBound. It has two methods, hasNext() and next().
 hasNext() returns true if next() has not yet returned the Point defined by the
-upperBound property of the parameter passed to constructor.  
+upperBound property of the parameter passed to constructor. It can be used like so:
+var box = new BoundingBox([new Point(), new Point(32,32,32)])  
+var iter = box.iterator()  
+var myPoint  
+for(;iter.hasNext();) {  
+  myPoint = iter.next()  
+  //process myPoint...  
+}  
 
 MapProperty: a property common to all Points in the BoundingBox of a MapData
 instance. Each MapProperty has three elements: key (a String name), type (a
@@ -85,11 +92,12 @@ http://www.engineeringtoolbox.com/thermal-conductivity-d_429.html
 
 ##Warnings
 *Disclaimer:* This program is distributed without any implied warranty or fitness
-for any particular use. It is experimental and as such it may break your computer
-equipment or cause other consequential damages. Using this software means you accept 
-this risk as your personal responsibility. If you are unable to accept this risk 
-you are not allowed to use this program.  
+for any particular use. It is "not ready for primetime" aka experimental
+and as such it may break your computer equipment or cause other consequential 
+damages. Using this software means you accept this risk as your personal 
+responsibility. If you are unable to accept this risk you are not allowed to use 
+this program.  
 
-Resource hog: this algorithm requires about 25GBh of processing time per million
+Resource hog: this algorithm requires about 5GBh of processing time per million
 Points of BoundingBox space. You may want to increase the heap size of your interpreter.
 I like to use a setting of 4096K.  

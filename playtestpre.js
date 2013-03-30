@@ -1,3 +1,4 @@
+//playtestpre.js the pre-browserify version of playtest.js
 var createGame = require('voxel-engine')
 var texturePath = require('painterly-textures')(__dirname)
 var terrain = require('./waxy')

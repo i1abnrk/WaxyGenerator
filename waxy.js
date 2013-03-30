@@ -185,7 +185,7 @@ var DropSheet = (function(opts) {
 
 //TODO: if a drop freezes it will fall until a not empty spot is below it
 //simulated annealing
-var WaxyGenerator = (function(opts) {
+WaxyGenerator = (function(opts) {
   console.log("WG.this")
   var self = this
   var initialTemp = opts.initialTemp || 1.0
@@ -400,16 +400,6 @@ var WaxyGenerator = (function(opts) {
   }//end generate
 })//end Generator
 
-this.generator = new WaxyGenerator(
-  {initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
-    conductWax: THERM_CON_WAX, freezing: 0.1,
-    floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
-        new Point({x:32,y:32,z:32})]),
-    materials:['grass', 'dirt', 'grass_dirt', 'obsidian', 'whitewool', 'brick'],
-    propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
-      new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
-      new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
-  })
 //test suite
 var validate = function(obj, type) {
   if (type = 'Point') {
@@ -446,9 +436,24 @@ var assertContains = function(obj, array) {
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
 
+this.generator = new WaxyGenerator({
+    initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
+    conductWax: THERM_CON_WAX, freezing: 0.1,
+    floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
+        new Point({x:32,y:32,z:32})]),
+    materials:['dirt', 'obsidian', 'whitewool', 'brick'],
+    propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
+        new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
+        new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
+})
+
 //data hook for voxel.js
 this.iterate = function(x,y,z) {
+  //generate a new chunk for each call
+  this.generator.generate()
+  //return the generated terrain map chunk
   return this.generator.data.map(x,y,z,TERR_MAP_PROP)
 }
 
+//this.generator.generate()
 module.exports.iterate = this.iterate
