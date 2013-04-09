@@ -4,6 +4,7 @@ const GRND_MAP_PROP = 'grounded'
 const THERM_CON_AIR = 0.024
 const THERM_CON_WAX = 0.25
 
+//TODO: Use Three.Vector3 instead
 //A wrapper class for an int triple
 var Point = (function(dims) {
   //validate(this, 'Point')
@@ -41,6 +42,7 @@ var ConnectedPoint = (function(dimensions){
 //TODO: debug flag w verbosity
 //TODO: validate objects
 
+//TODO: Use AABB instead
 //a working set, rectangular prism
 var BoundingBox = (function(dims) {
   //console.log('BoundingBox')
@@ -194,7 +196,7 @@ WaxyGenerator = (function(opts) {
   var freezing = opts.freezing || 0.1
   var floorTemp = opts.floorTemp || 0.0
   bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
-      new Point({x:80,y:80,z:80})]);
+      new Point({x:32,y:32,z:32})]);
 
   //each property in propertyList has its own map data
   var propertyList = opts.propertyList || 
@@ -222,7 +224,7 @@ WaxyGenerator = (function(opts) {
 
   //a drop is grounded if it is recursively connected to the floor and freezing
   //uses a recursion trick, pass empty brackets {} for searchedR on first call
-  //the search can return a false negative (fuzzy logic)
+  //the search can return a false negative (fuzzy logic... I'm lazy)
   var grounded = function (x,y,z,searchedR) {
     //console.log('WG.grounded')
     if(y===0 && !self.data.isEmpty(x,y,z)) {
@@ -435,27 +437,34 @@ var assertContains = function(obj, array) {
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
 
+this.generator = new WaxyGenerator()
+
+this.generateChunk = function() {
+    //generate a new chunk for each call of 0,0,0
+    this.generator = new WaxyGenerator({
+      initialTemp:1.0,
+      fillPercent: 0.35,
+      conductAir: THERM_CON_AIR,
+      conductWax: THERM_CON_WAX,
+      freezing: 0.1,
+      floorTemp:0.0,
+      bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
+          new Point({x:32,y:32,z:32})]),
+      materials:['dirt', 'obsidian', 'whitewool', 'brick'],
+      propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
+          new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
+          new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
+    })
+    this.generator.generate()
+}
 
 //data hook for voxel.js
 this.iterate = function(x,y,z) {
-var generator = new WaxyGenerator({
-  initialTemp:1.0,
-  fillPercent: 0.35,
-  conductAir: THERM_CON_AIR,
-  conductWax: THERM_CON_WAX,
-  freezing: 0.1,
-  floorTemp:0.0,
-  bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
-      new Point({x:32,y:32,z:32})]),
-  materials:['dirt', 'obsidian', 'whitewool', 'brick'],
-  propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
-      new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
-      new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
-})
-  //generate a new chunk for each call
-  generator.generate()
+  if(x+y+z===0){
+	this.generateChunk()
+  }  
   //return the generated terrain map chunk
-  return generator.data.map(x,y,z,TERR_MAP_PROP)
+  return this.generator.data.map(x,y,z,TERR_MAP_PROP)
 }
 
 //this.generator.generate()

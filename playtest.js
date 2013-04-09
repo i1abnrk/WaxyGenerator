@@ -5,6 +5,7 @@ const GRND_MAP_PROP = 'grounded'
 const THERM_CON_AIR = 0.024
 const THERM_CON_WAX = 0.25
 
+//TODO: Use Three.Vector3 instead
 //A wrapper class for an int triple
 var Point = (function(dims) {
   //validate(this, 'Point')
@@ -42,6 +43,7 @@ var ConnectedPoint = (function(dimensions){
 //TODO: debug flag w verbosity
 //TODO: validate objects
 
+//TODO: Use AABB instead
 //a working set, rectangular prism
 var BoundingBox = (function(dims) {
   //console.log('BoundingBox')
@@ -195,7 +197,7 @@ WaxyGenerator = (function(opts) {
   var freezing = opts.freezing || 0.1
   var floorTemp = opts.floorTemp || 0.0
   bounds = opts.bounds || new BoundingBox([new Point({x:0,y:0,z:0}), 
-      new Point({x:80,y:80,z:80})]);
+      new Point({x:32,y:32,z:32})]);
 
   //each property in propertyList has its own map data
   var propertyList = opts.propertyList || 
@@ -223,7 +225,7 @@ WaxyGenerator = (function(opts) {
 
   //a drop is grounded if it is recursively connected to the floor and freezing
   //uses a recursion trick, pass empty brackets {} for searchedR on first call
-  //the search can return a false negative (fuzzy logic)
+  //the search can return a false negative (fuzzy logic... I'm lazy)
   var grounded = function (x,y,z,searchedR) {
     //console.log('WG.grounded')
     if(y===0 && !self.data.isEmpty(x,y,z)) {
@@ -436,27 +438,34 @@ var assertContains = function(obj, array) {
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
 
+this.generator = new WaxyGenerator()
+
+this.generateChunk = function() {
+    //generate a new chunk for each call of 0,0,0
+    this.generator = new WaxyGenerator({
+      initialTemp:1.0,
+      fillPercent: 0.35,
+      conductAir: THERM_CON_AIR,
+      conductWax: THERM_CON_WAX,
+      freezing: 0.1,
+      floorTemp:0.0,
+      bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
+          new Point({x:32,y:32,z:32})]),
+      materials:['dirt', 'obsidian', 'whitewool', 'brick'],
+      propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
+          new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
+          new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
+    })
+    this.generator.generate()
+}
 
 //data hook for voxel.js
 this.iterate = function(x,y,z) {
-var generator = new WaxyGenerator({
-  initialTemp:1.0,
-  fillPercent: 0.35,
-  conductAir: THERM_CON_AIR,
-  conductWax: THERM_CON_WAX,
-  freezing: 0.1,
-  floorTemp:0.0,
-  bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
-      new Point({x:32,y:32,z:32})]),
-  materials:['dirt', 'obsidian', 'whitewool', 'brick'],
-  propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
-      new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
-      new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
-})
-  //generate a new chunk for each call
-  generator.generate()
+  if(x+y+z===0){
+	this.generateChunk()
+  }  
   //return the generated terrain map chunk
-  return generator.data.map(x,y,z,TERR_MAP_PROP)
+  return this.generator.data.map(x,y,z,TERR_MAP_PROP)
 }
 
 //this.generator.generate()
@@ -484,7 +493,16 @@ game.appendTo(container)
 game.setupPointerLock(container)
 
 })("/")
-},{"./waxy":1,"voxel-engine":3,"painterly-textures":4}],5:[function(require,module,exports){
+},{"./waxy":1,"painterly-textures":3,"voxel-engine":4}],3:[function(require,module,exports){
+(function(__dirname){var path = require('path')
+var texturePath = __dirname + '/textures'
+
+module.exports = function(dir) {
+  return path.relative(dir, texturePath) + '/'
+}
+
+})("/node_modules/painterly-textures")
+},{"path":5}],6:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -538,7 +556,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],6:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 (function(process){function filter (xs, fn) {
     var res = [];
     for (var i = 0; i < xs.length; i++) {
@@ -716,7 +734,7 @@ exports.relative = function(from, to) {
 };
 
 })(require("__browserify_process"))
-},{"__browserify_process":5}],7:[function(require,module,exports){
+},{"__browserify_process":6}],7:[function(require,module,exports){
 (function(process){if (!process.EventEmitter) process.EventEmitter = function () {};
 
 var EventEmitter = exports.EventEmitter = process.EventEmitter;
@@ -902,16 +920,7 @@ EventEmitter.prototype.listeners = function(type) {
 };
 
 })(require("__browserify_process"))
-},{"__browserify_process":5}],4:[function(require,module,exports){
-(function(__dirname){var path = require('path')
-var texturePath = __dirname + '/textures'
-
-module.exports = function(dir) {
-  return path.relative(dir, texturePath) + '/'
-}
-
-})("/node_modules/painterly-textures")
-},{"path":6}],8:[function(require,module,exports){
+},{"__browserify_process":6}],8:[function(require,module,exports){
 /**
  * @author mrdoob / http://mrdoob.com/
  */
@@ -1118,680 +1127,7 @@ module.exports = function() {
   };
 }
 
-},{}],10:[function(require,module,exports){
-"use strict"
-
-function traceRay_impl(
-  voxels,
-  px, py, pz,
-  dx, dy, dz,
-  max_d,
-  hit_pos,
-  hit_norm,
-  EPSILON) {
-  var t = 0.0
-    , nx=0, ny=0, nz=0
-    , ix, iy, iz
-    , fx, fy, fz
-    , ox, oy, oz
-    , ex, ey, ez
-    , b, step, min_step
-    , floor = Math.floor
-  //Step block-by-block along ray
-  while(t <= max_d) {
-    ox = px + t * dx
-    oy = py + t * dy
-    oz = pz + t * dz
-    ix = floor(ox)|0
-    iy = floor(oy)|0
-    iz = floor(oz)|0
-    fx = ox - ix
-    fy = oy - iy
-    fz = oz - iz
-    b = voxels.getBlock(ix, iy, iz)
-    if(b) {
-      if(hit_pos) {
-        //Clamp to face on hit
-        hit_pos[0] = fx < EPSILON ? +ix : (fx > 1.0-EPSILON ? ix+1.0-EPSILON : ox)
-        hit_pos[1] = fy < EPSILON ? +iy : (fy > 1.0-EPSILON ? iy+1.0-EPSILON : oy)
-        hit_pos[2] = fz < EPSILON ? +iz : (fz > 1.0-EPSILON ? iz+1.0-EPSILON : oz)
-      }
-      if(hit_norm) {
-        hit_norm[0] = nx
-        hit_norm[1] = ny
-        hit_norm[2] = nz
-      }
-      return b
-    }
-    //Check edge cases
-    min_step = +(EPSILON * (1.0 + t))
-    if(t > min_step) {
-      ex = nx < 0 ? fx <= min_step : fx >= 1.0 - min_step
-      ey = ny < 0 ? fy <= min_step : fy >= 1.0 - min_step
-      ez = nz < 0 ? fz <= min_step : fz >= 1.0 - min_step
-      if(ex && ey && ez) {
-        b = voxels.getBlock(ix+nx, iy+ny, iz) ||
-            voxels.getBlock(ix, iy+ny, iz+nz) ||
-            voxels.getBlock(ix+nx, iy, iz+nz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
-            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
-            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ex && (ey || ez)) {
-        b = voxels.getBlock(ix+nx, iy, iz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
-            hit_pos[1] = fy < EPSILON ? +iy : oy
-            hit_pos[2] = fz < EPSILON ? +iz : oz
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ey && (ex || ez)) {
-        b = voxels.getBlock(ix, iy+ny, iz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = fx < EPSILON ? +ix : ox
-            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
-            hit_pos[2] = fz < EPSILON ? +iz : oz
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-      if(ez && (ex || ey)) {
-        b = voxels.getBlock(ix, iy, iz+nz)
-        if(b) {
-          if(hit_pos) {
-            hit_pos[0] = fx < EPSILON ? +ix : ox
-            hit_pos[1] = fy < EPSILON ? +iy : oy
-            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
-          }
-          if(hit_norm) {
-            hit_norm[0] = nx
-            hit_norm[1] = ny
-            hit_norm[2] = nz
-          }
-          return b
-        }
-      }
-    }
-    //Walk to next face of cube along ray
-    nx = ny = nz = 0
-    step = 2.0
-    if(dx < -EPSILON) {
-      var s = -fx/dx
-      nx = 1
-      step = s
-    }
-    if(dx > EPSILON) {
-      var s = (1.0-fx)/dx
-      nx = -1
-      step = s
-    }
-    if(dy < -EPSILON) {
-      var s = -fy/dy
-      if(s < step-min_step) {
-        nx = 0
-        ny = 1
-        step = s
-      } else if(s < step+min_step) {
-        ny = 1
-      }
-    }
-    if(dy > EPSILON) {
-      var s = (1.0-fy)/dy
-      if(s < step-min_step) {
-        nx = 0
-        ny = -1
-        step = s
-      } else if(s < step+min_step) {
-        ny = -1
-      }
-    }
-    if(dz < -EPSILON) {
-      var s = -fz/dz
-      if(s < step-min_step) {
-        nx = ny = 0
-        nz = 1
-        step = s
-      } else if(s < step+min_step) {
-        nz = 1
-      }
-    }
-    if(dz > EPSILON) {
-      var s = (1.0-fz)/dz
-      if(s < step-min_step) {
-        nx = ny = 0
-        nz = -1
-        step = s
-      } else if(s < step+min_step) {
-        nz = -1
-      }
-    }
-    if(step > max_d - t) {
-      step = max_d - t - min_step
-    }
-    if(step < min_step) {
-      step = min_step
-    }
-    t += step
-  }
-  if(hit_pos) {
-    hit_pos[0] = ox;
-    hit_pos[1] = oy;
-    hit_pos[2] = oz;
-  }
-  if(hit_norm) {
-    hit_norm[0] = hit_norm[1] = hit_norm[2] = 0;
-  }
-  return 0
-}
-
-function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm, EPSILON) {
-  var px = +origin[0]
-    , py = +origin[1]
-    , pz = +origin[2]
-    , dx = +direction[0]
-    , dy = +direction[1]
-    , dz = +direction[2]
-    , ds = Math.sqrt(dx*dx + dy*dy + dz*dz)
-  if(typeof(EPSILON) === "undefined") {
-    EPSILON = 1e-8
-  }
-  if(ds < EPSILON) {
-    if(hit_pos) {
-      hit_pos[0] = hit_pos[1] = hit_pos[2]
-    }
-    if(hit_norm) {
-      hit_norm[0] = hit_norm[1] = hit_norm[2]
-    }
-    return 0;
-  }
-  dx /= ds
-  dy /= ds
-  dz /= ds
-  if(typeof(max_d) === "undefined") {
-    max_d = 64.0
-  } else {
-    max_d = +max_d
-  }
-  return traceRay_impl(voxels, px, py, pz, dx, dy, dz, max_d, hit_pos, hit_norm, EPSILON)
-}
-
-module.exports = traceRay
-},{}],11:[function(require,module,exports){
-module.exports = inherits
-
-function inherits (c, p, proto) {
-  proto = proto || {}
-  var e = {}
-  ;[c.prototype, proto].forEach(function (s) {
-    Object.getOwnPropertyNames(s).forEach(function (k) {
-      e[k] = Object.getOwnPropertyDescriptor(s, k)
-    })
-  })
-  c.prototype = Object.create(p.prototype, e)
-  c.super = p
-}
-
-//function Child () {
-//  Child.super.call(this)
-//  console.error([this
-//                ,this.constructor
-//                ,this.constructor === Child
-//                ,this.constructor.super === Parent
-//                ,Object.getPrototypeOf(this) === Child.prototype
-//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
-//                 === Parent.prototype
-//                ,this instanceof Child
-//                ,this instanceof Parent])
-//}
-//function Parent () {}
-//inherits(Child, Parent)
-//new Child
-
-},{}],12:[function(require,module,exports){
-module.exports = control
-
-var Stream = require('stream').Stream
-
-function control(control_state, opts) {
-  return new Control(control_state, opts)
-}
-
-function Control(state, opts) {
-  Stream.call(this)
-
-  opts = opts || {}
-
-  this.state = state
-  this._pitch_target = 
-  this._yaw_target =
-  this._roll_target =
-  this._target = null
-  this.speed = opts.speed || 0.0032
-  this.max_speed = opts.maxSpeed || 0.0112
-  this.jump_max_speed = opts.jumpMaxSpeed || 0.016
-  this.jump_max_timer = opts.jumpTimer || 200
-  this.jump_speed = opts.jumpSpeed || 0.004
-  this.jump_timer = this.jump_timer_max
-  this.jumping = false
-  this.acceleration = opts.accelerationCurve || this.acceleration
-
-  this.fire_rate = opts.fireRate || 0
-  this.needs_discrete_fire = opts.discreteFire || false
-  this.onfire = opts.onfire || this.onfire
-  this.firing = 0
-
-  this.x_rotation_per_ms = opts.rotationXMax || opts.rotationMax || 33
-  this.y_rotation_per_ms = opts.rotationYMax || opts.rotationMax || 33
-  this.z_rotation_per_ms = opts.rotationZMax || opts.rotationMax || 33
-
-  this.x_rotation_clamp = opts.rotationXClamp || Math.PI / 2
-  this.y_rotation_clamp = opts.rotationYClamp || Infinity
-  this.z_rotation_clamp = opts.rotationZClamp || 0
-
-  this.rotation_scale = opts.rotationScale || 0.002
-
-  this.air_control = 'airControl' in opts ? opts.airControl : true
-
-  this.state.x_rotation_accum =
-  this.state.y_rotation_accum = 
-  this.state.z_rotation_accum = 0.0
-
-  this.accel_max_timer = opts.accelTimer || 200
-  this.x_accel_timer = this.accel_max_timer+0
-  this.z_accel_timer = this.accel_max_timer+0
-
-  this.readable =
-  this.writable = true
-
-  this.buffer = []
-  this.paused = false
-}
-
-var cons = Control
-  , proto = cons.prototype = new Stream
-
-proto.constructor = cons
-
-var max = Math.max
-  , min = Math.min
-  , sin = Math.sin
-  , abs = Math.abs
-  , floor = Math.floor
-  , PI = Math.PI
-
-proto.tick = function(dt) {
-  if(!this._target) {
-    return
-  }
-  var state = this.state
-    , target = this._target
-    , speed = this.speed
-    , jump_speed = this.jump_speed
-    , okay_z = abs(target.velocity.z) < this.max_speed
-    , okay_x = abs(target.velocity.x) < this.max_speed
-    , at_rest = target.atRestY()
-
-  if(!this._target) return
-
-  if(state.forward || state.backward) {
-    this.z_accel_timer = max(0, this.z_accel_timer - dt)
-  }
-  if(state.backward) {
-    if(target.velocity.z < this.max_speed)
-      target.velocity.z = max(min(this.max_speed, speed * dt * this.acceleration(this.z_accel_timer, this.accel_max_timer)), target.velocity.z)
-  } else if(state.forward) {
-    if(target.velocity.z > -this.max_speed)
-      target.velocity.z = min(max(-this.max_speed, -speed * dt * this.acceleration(this.z_accel_timer, this.accel_max_timer)), target.velocity.z)
-  } else {
-    this.z_accel_timer = this.accel_max_timer
-
-  }
- 
-
-  if(state.left || state.right) {
-    this.x_accel_timer = max(0, this.x_accel_timer - dt)
-  }
-
-  if(state.right) {
-    if(target.velocity.x < this.max_speed)
-      target.velocity.x = max(min(this.max_speed, speed * dt * this.acceleration(this.x_accel_timer, this.accel_max_timer)), target.velocity.x)
-  } else if(state.left) {
-    if(target.velocity.x > -this.max_speed)
-      target.velocity.x = min(max(-this.max_speed, -speed * dt * this.acceleration(this.x_accel_timer, this.accel_max_timer)), target.velocity.x)
-  } else {
-    this.x_accel_timer = this.accel_max_timer
-  }
-
-  if(state.jump) {
-    if(!this.jumping && !at_rest) {
-      // we're falling, we can't jump
-    } else if(at_rest > 0) {
-      // we hit our head
-      this.jumping = false
-    } else {
-      this.jumping = true
-      if(this.jump_timer > 0) {
-        target.velocity.y = min(target.velocity.y + jump_speed * min(dt, this.jump_timer), this.jump_max_speed)
-      }
-      this.jump_timer = max(this.jump_timer - dt, 0)
-    }
-  } else {
-    this.jumping = false
-  }
-  this.jump_timer = at_rest < 0 ? this.jump_max_timer : this.jump_timer
-
-  var can_fire = true
-
-  if(state.fire || state.firealt) {
-    if(this.firing && this.needs_discrete_fire) {
-      this.firing += dt
-    } else {
-      if(!this.fire_rate || floor(this.firing / this.fire_rate) !== floor((this.firing + dt) / this.fire_rate)) {
-        this.onfire(state)
-      }
-      this.firing += dt
-    }
-  } else {
-    this.firing = 0
-  }
-
-  var x_rotation = this.state.x_rotation_accum * this.rotation_scale
-    , y_rotation = this.state.y_rotation_accum * this.rotation_scale
-    , z_rotation = this.state.z_rotation_accum * this.rotation_scale
-    , pitch_target = this._pitch_target
-    , yaw_target = this._yaw_target
-    , roll_target = this._roll_target
-
-  pitch_target.rotation.x = clamp(pitch_target.rotation.x + clamp(x_rotation, this.x_rotation_per_ms), this.x_rotation_clamp)
-  yaw_target.rotation.y = clamp(yaw_target.rotation.y + clamp(y_rotation, this.y_rotation_per_ms), this.y_rotation_clamp)
-  roll_target.rotation.z = clamp(roll_target.rotation.z + clamp(z_rotation, this.z_rotation_per_ms), this.z_rotation_clamp)
-
-  if(this.listeners('data').length) {
-    this.emitUpdate()
-  }
-
-  this.state.x_rotation_accum =
-  this.state.y_rotation_accum =
-  this.state.z_rotation_accum = 0
-}
-
-proto.write = function(changes) {
-  for(var key in changes) {
-    this.state[key] = changes[key]
-  }
-}
-
-proto.end = function(deltas) {
-  if(deltas) {
-    this.write(deltas)
-  }
-}
-
-proto.createWriteRotationStream = function() {
-  var state = this.state
-    , stream = new Stream
-
-  state.x_rotation_accum =
-  state.y_rotation_accum =
-  state.z_rotation_accum = 0
-
-  stream.writable = true
-  stream.write = write
-  stream.end = end
-
-  return stream
-
-  function write(changes) {
-    state.x_rotation_accum -= changes.dy || 0
-    state.y_rotation_accum -= changes.dx || 0
-    state.z_rotation_accum += changes.dz || 0
-  }
-
-  function end(deltas) {
-    if(deltas) {
-      stream.write(deltas)
-    }
-  }
-}
-
-proto.emitUpdate = function() {
-  return this.queue({
-      x_rotation_accum: this.state.x_rotation_accum
-    , y_rotation_accum: this.state.y_rotation_accum
-    , z_rotation_accum: this.state.z_rotation_accum
-    , forward: this.state.forward
-    , backward: this.state.backward
-    , left: this.state.left
-    , right: this.state.right
-    , fire: this.state.fire
-    , firealt: this.state.firealt
-    , jump: this.state.jump
-  })
-}
-
-proto.drain = function() {
-  var buf = this.buffer
-    , data
-
-  while(buf.length && !this.paused) {
-    data = buf.shift()
-    if(null === data) {
-      return this.emit('end')
-    }
-    this.emit('data', data)
-  }
-}
-
-proto.resume = function() {
-  this.paused = false
-  this.drain()
-
-  if(!this.paused) {
-    this.emit('drain')
-  }
-  return this
-}
-
-proto.pause = function() {
-  if(this.paused) return
-
-  this.paused = true
-  this.emit('pause')
-  return this
-}
-
-proto.queue = function(data) {
-  this.buffer.push(data)
-  this.drain()
-  return this
-}
-
-proto.acceleration = function(current, max) {
-  // max -> 0
-  var pct = (max - current) / max
-  return sin(PI/2*pct)
-}
-
-proto.target = function(target) {
-  if(target) {
-    this._target = target
-    this._yaw_target = target.yaw || target
-    this._pitch_target = target.pitch || target
-    this._roll_target = target.roll || target
-  }
-  return this._target
-}
-
-proto.onfire = function(_) {
-
-}
-
-function clamp(value, to) {
-  return isFinite(to) ? max(min(value, to), -to) : value
-}
-
-},{"stream":13}],14:[function(require,module,exports){
-(function(){module.exports = raf
-
-var EE = require('events').EventEmitter
-  , global = typeof window === 'undefined' ? this : window
-
-var _raf =
-  global.requestAnimationFrame ||
-  global.webkitRequestAnimationFrame ||
-  global.mozRequestAnimationFrame ||
-  global.msRequestAnimationFrame ||
-  global.oRequestAnimationFrame ||
-  (global.setImmediate ? function(fn, el) {
-    setImmediate(fn)
-  } :
-  function(fn, el) {
-    setTimeout(fn, 0)
-  })
-
-function raf(el) {
-  var now = raf.now()
-    , ee = new EE
-
-  ee.pause = function() { ee.paused = true }
-  ee.resume = function() { ee.paused = false }
-
-  _raf(iter, el)
-
-  return ee
-
-  function iter(timestamp) {
-    var _now = raf.now()
-      , dt = _now - now
-    
-    now = _now
-
-    ee.emit('data', dt)
-
-    if(!ee.paused) {
-      _raf(iter, el)
-    }
-  }
-}
-
-raf.polyfill = _raf
-raf.now = function() { return Date.now() }
-
-})()
-},{"events":7}],15:[function(require,module,exports){
-module.exports = function(field, tilesize, dimensions, offset) {
-  dimensions = dimensions || [ 
-    Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  , Math.sqrt(field.length) >> 0
-  ] 
-
-  offset = offset || [
-    0
-  , 0
-  , 0
-  ]
-
-  field = typeof field === 'function' ? field : function(x, y, z) {
-    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
-  }.bind(field) 
-
-  var coords
-
-  coords = [0, 0, 0]
-
-  return collide
-
-  function collide(box, vec, oncollision) {
-    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
-
-    // collide x, then y
-    collideaxis(0)
-    collideaxis(1)
-    collideaxis(2)
-
-    function collideaxis(i_axis) {
-      var j_axis = (i_axis + 1) % 3
-        , k_axis = (i_axis + 2) % 3 
-        , posi = vec[i_axis] > 0
-        , leading = box[posi ? 'max' : 'base'][i_axis] 
-        , dir = posi ? 1 : -1
-        , i_start = Math.floor(leading / tilesize)
-        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
-        , j_start = Math.floor(box.base[j_axis] / tilesize)
-        , j_end = Math.ceil(box.max[j_axis] / tilesize)
-        , k_start = Math.floor(box.base[k_axis] / tilesize) 
-        , k_end = Math.ceil(box.max[k_axis] / tilesize)
-        , done = false
-        , edge_vector
-        , edge
-        , tile
-
-      // loop from the current tile coord to the dest tile coord
-      //    -> loop on the opposite axis to get the other candidates
-      //      -> if `oncollision` return `true` we've hit something and
-      //         should break out of the loops entirely.
-      //         NB: `oncollision` is where the client gets the chance
-      //         to modify the `vec` in-flight.
-      // once we're done translate the box to the vec results
-
-      var step = 0
-      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
-        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
-        for(var j = j_start; !done && j !== j_end; ++j) {
-          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
-          for(var k = k_start; k !== k_end; ++k) {
-            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
-            coords[i_axis] = i
-            coords[j_axis] = j
-            coords[k_axis] = k
-            tile = field.apply(field, coords)
-
-            if(tile === undefined) continue
-
-            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
-            edge_vector = edge - leading
-
-            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
-              done = true
-              break
-            }
-          } 
-        }
-      }
-
-      coords[0] = coords[1] = coords[2] = 0
-      coords[i_axis] = vec[i_axis]
-      box.translate(coords)
-    }
-  }  
-}
-
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 (function(process){var voxel = require('voxel')
 var voxelMesh = require('voxel-mesh')
 var voxelChunks = require('voxel-chunks')
@@ -2496,89 +1832,512 @@ Game.prototype.destroy = function() {
 }
 
 })(require("__browserify_process"))
-},{"path":6,"events":7,"./lib/stats":8,"./lib/detector":9,"voxel":16,"voxel-chunks":17,"voxel-raycast":10,"voxel-view":18,"three":19,"inherits":11,"voxel-mesh":20,"voxel-control":12,"interact":21,"raf":14,"collide-3d-tilemap":15,"spatial-events":22,"kb-controls":23,"pin-it":24,"voxel-texture":25,"voxel-region-change":26,"aabb-3d":27,"voxel-physical":28,"gl-matrix":29,"__browserify_process":5}],24:[function(require,module,exports){
-module.exports = pin
+},{"path":5,"events":7,"./lib/stats":8,"./lib/detector":9,"voxel":10,"voxel-mesh":11,"voxel-chunks":12,"voxel-raycast":13,"voxel-control":14,"voxel-view":15,"three":16,"inherits":17,"interact":18,"raf":19,"collide-3d-tilemap":20,"aabb-3d":21,"gl-matrix":22,"spatial-events":23,"kb-controls":24,"voxel-physical":25,"pin-it":26,"voxel-texture":27,"voxel-region-change":28,"__browserify_process":6}],13:[function(require,module,exports){
+"use strict"
 
-var pins = {}
-  , stack_holder = {}
-  , pin_holder
-
-function make_pin_for(name, obj) {
-  var container = document.createElement('div')
-    , header = document.createElement('h4')
-    , body = document.createElement('pre')
-
-  container.style.background = 'white'
-  container.style.marginBottom = '4px'
-  container.appendChild(header)
-  container.appendChild(body)
-  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
-  body.style.padding = '8px'
-
-
-  if(!pin_holder) {
-    pin_holder = document.createElement('div')
-    pin_holder.style.position = 'absolute'
-    pin_holder.style.top =
-    pin_holder.style.right = '4px'
-
-    document.body.appendChild(pin_holder)
-  }
-
-  pin_holder.appendChild(container)
-
-  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
-}
-
-function update_pin(item, into, retain, depth) {
-  if(!retain) into.innerHTML = ''
-  if(depth > 1) return
-  depth = depth || 0
-
-  switch(typeof item) {
-    case 'number': into.innerText += item.toFixed(3); break
-    case 'string': into.innerText += '"'+item+'"'; break
-    case 'undefined':
-    case 'object':
-      if(item) {
-        for(var key in item) if(item.hasOwnProperty(key)) {
-          into.innerText += key +':'
-          update_pin(item[key], into, true, depth+1)
-          into.innerText += '\n'
-        } 
-        break
+function traceRay_impl(
+  voxels,
+  px, py, pz,
+  dx, dy, dz,
+  max_d,
+  hit_pos,
+  hit_norm,
+  EPSILON) {
+  var t = 0.0
+    , nx=0, ny=0, nz=0
+    , ix, iy, iz
+    , fx, fy, fz
+    , ox, oy, oz
+    , ex, ey, ez
+    , b, step, min_step
+    , floor = Math.floor
+  //Step block-by-block along ray
+  while(t <= max_d) {
+    ox = px + t * dx
+    oy = py + t * dy
+    oz = pz + t * dz
+    ix = floor(ox)|0
+    iy = floor(oy)|0
+    iz = floor(oz)|0
+    fx = ox - ix
+    fy = oy - iy
+    fz = oz - iz
+    b = voxels.getBlock(ix, iy, iz)
+    if(b) {
+      if(hit_pos) {
+        //Clamp to face on hit
+        hit_pos[0] = fx < EPSILON ? +ix : (fx > 1.0-EPSILON ? ix+1.0-EPSILON : ox)
+        hit_pos[1] = fy < EPSILON ? +iy : (fy > 1.0-EPSILON ? iy+1.0-EPSILON : oy)
+        hit_pos[2] = fz < EPSILON ? +iz : (fz > 1.0-EPSILON ? iz+1.0-EPSILON : oz)
       }
-    case 'boolean': into.innerText += ''+item; break
-  }  
+      if(hit_norm) {
+        hit_norm[0] = nx
+        hit_norm[1] = ny
+        hit_norm[2] = nz
+      }
+      return b
+    }
+    //Check edge cases
+    min_step = +(EPSILON * (1.0 + t))
+    if(t > min_step) {
+      ex = nx < 0 ? fx <= min_step : fx >= 1.0 - min_step
+      ey = ny < 0 ? fy <= min_step : fy >= 1.0 - min_step
+      ez = nz < 0 ? fz <= min_step : fz >= 1.0 - min_step
+      if(ex && ey && ez) {
+        b = voxels.getBlock(ix+nx, iy+ny, iz) ||
+            voxels.getBlock(ix, iy+ny, iz+nz) ||
+            voxels.getBlock(ix+nx, iy, iz+nz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
+            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
+            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
+      }
+      if(ex && (ey || ez)) {
+        b = voxels.getBlock(ix+nx, iy, iz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = nx < 0 ? ix-EPSILON : ix + 1.0-EPSILON
+            hit_pos[1] = fy < EPSILON ? +iy : oy
+            hit_pos[2] = fz < EPSILON ? +iz : oz
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
+      }
+      if(ey && (ex || ez)) {
+        b = voxels.getBlock(ix, iy+ny, iz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = fx < EPSILON ? +ix : ox
+            hit_pos[1] = ny < 0 ? iy-EPSILON : iy + 1.0-EPSILON
+            hit_pos[2] = fz < EPSILON ? +iz : oz
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
+      }
+      if(ez && (ex || ey)) {
+        b = voxels.getBlock(ix, iy, iz+nz)
+        if(b) {
+          if(hit_pos) {
+            hit_pos[0] = fx < EPSILON ? +ix : ox
+            hit_pos[1] = fy < EPSILON ? +iy : oy
+            hit_pos[2] = nz < 0 ? iz-EPSILON : iz + 1.0-EPSILON
+          }
+          if(hit_norm) {
+            hit_norm[0] = nx
+            hit_norm[1] = ny
+            hit_norm[2] = nz
+          }
+          return b
+        }
+      }
+    }
+    //Walk to next face of cube along ray
+    nx = ny = nz = 0
+    step = 2.0
+    if(dx < -EPSILON) {
+      var s = -fx/dx
+      nx = 1
+      step = s
+    }
+    if(dx > EPSILON) {
+      var s = (1.0-fx)/dx
+      nx = -1
+      step = s
+    }
+    if(dy < -EPSILON) {
+      var s = -fy/dy
+      if(s < step-min_step) {
+        nx = 0
+        ny = 1
+        step = s
+      } else if(s < step+min_step) {
+        ny = 1
+      }
+    }
+    if(dy > EPSILON) {
+      var s = (1.0-fy)/dy
+      if(s < step-min_step) {
+        nx = 0
+        ny = -1
+        step = s
+      } else if(s < step+min_step) {
+        ny = -1
+      }
+    }
+    if(dz < -EPSILON) {
+      var s = -fz/dz
+      if(s < step-min_step) {
+        nx = ny = 0
+        nz = 1
+        step = s
+      } else if(s < step+min_step) {
+        nz = 1
+      }
+    }
+    if(dz > EPSILON) {
+      var s = (1.0-fz)/dz
+      if(s < step-min_step) {
+        nx = ny = 0
+        nz = -1
+        step = s
+      } else if(s < step+min_step) {
+        nz = -1
+      }
+    }
+    if(step > max_d - t) {
+      step = max_d - t - min_step
+    }
+    if(step < min_step) {
+      step = min_step
+    }
+    t += step
+  }
+  if(hit_pos) {
+    hit_pos[0] = ox;
+    hit_pos[1] = oy;
+    hit_pos[2] = oz;
+  }
+  if(hit_norm) {
+    hit_norm[0] = hit_norm[1] = hit_norm[2] = 0;
+  }
+  return 0
 }
 
-function pin(item, every, obj, name) {
-  if(!name) Error.captureStackTrace(stack_holder)
-  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
-    , target = pins[location] || make_pin_for(location, obj)
-    , now = Date.now()
-    , every = every || 0
-
-  if(arguments.length < 3) target = target[0]
-  else {
-    for(var i = 0, len = target.length; i < len; ++i) {
-    if(target[i].for_object === obj) {
-      target = target[i]
-      break   
-    }
+function traceRay(voxels, origin, direction, max_d, hit_pos, hit_norm, EPSILON) {
+  var px = +origin[0]
+    , py = +origin[1]
+    , pz = +origin[2]
+    , dx = +direction[0]
+    , dy = +direction[1]
+    , dz = +direction[2]
+    , ds = Math.sqrt(dx*dx + dy*dy + dz*dz)
+  if(typeof(EPSILON) === "undefined") {
+    EPSILON = 1e-8
   }
-    if(i === len) {
-      pins[location].push(target = make_pin_for(location, obj))
+  if(ds < EPSILON) {
+    if(hit_pos) {
+      hit_pos[0] = hit_pos[1] = hit_pos[2]
     }
+    if(hit_norm) {
+      hit_norm[0] = hit_norm[1] = hit_norm[2]
+    }
+    return 0;
+  }
+  dx /= ds
+  dy /= ds
+  dz /= ds
+  if(typeof(max_d) === "undefined") {
+    max_d = 64.0
+  } else {
+    max_d = +max_d
+  }
+  return traceRay_impl(voxels, px, py, pz, dx, dy, dz, max_d, hit_pos, hit_norm, EPSILON)
+}
+
+module.exports = traceRay
+},{}],14:[function(require,module,exports){
+module.exports = control
+
+var Stream = require('stream').Stream
+
+function control(control_state, opts) {
+  return new Control(control_state, opts)
+}
+
+function Control(state, opts) {
+  Stream.call(this)
+
+  opts = opts || {}
+
+  this.state = state
+  this._pitch_target = 
+  this._yaw_target =
+  this._roll_target =
+  this._target = null
+  this.speed = opts.speed || 0.0032
+  this.max_speed = opts.maxSpeed || 0.0112
+  this.jump_max_speed = opts.jumpMaxSpeed || 0.016
+  this.jump_max_timer = opts.jumpTimer || 200
+  this.jump_speed = opts.jumpSpeed || 0.004
+  this.jump_timer = this.jump_timer_max
+  this.jumping = false
+  this.acceleration = opts.accelerationCurve || this.acceleration
+
+  this.fire_rate = opts.fireRate || 0
+  this.needs_discrete_fire = opts.discreteFire || false
+  this.onfire = opts.onfire || this.onfire
+  this.firing = 0
+
+  this.x_rotation_per_ms = opts.rotationXMax || opts.rotationMax || 33
+  this.y_rotation_per_ms = opts.rotationYMax || opts.rotationMax || 33
+  this.z_rotation_per_ms = opts.rotationZMax || opts.rotationMax || 33
+
+  this.x_rotation_clamp = opts.rotationXClamp || Math.PI / 2
+  this.y_rotation_clamp = opts.rotationYClamp || Infinity
+  this.z_rotation_clamp = opts.rotationZClamp || 0
+
+  this.rotation_scale = opts.rotationScale || 0.002
+
+  this.air_control = 'airControl' in opts ? opts.airControl : true
+
+  this.state.x_rotation_accum =
+  this.state.y_rotation_accum = 
+  this.state.z_rotation_accum = 0.0
+
+  this.accel_max_timer = opts.accelTimer || 200
+  this.x_accel_timer = this.accel_max_timer+0
+  this.z_accel_timer = this.accel_max_timer+0
+
+  this.readable =
+  this.writable = true
+
+  this.buffer = []
+  this.paused = false
+}
+
+var cons = Control
+  , proto = cons.prototype = new Stream
+
+proto.constructor = cons
+
+var max = Math.max
+  , min = Math.min
+  , sin = Math.sin
+  , abs = Math.abs
+  , floor = Math.floor
+  , PI = Math.PI
+
+proto.tick = function(dt) {
+  if(!this._target) {
+    return
+  }
+  var state = this.state
+    , target = this._target
+    , speed = this.speed
+    , jump_speed = this.jump_speed
+    , okay_z = abs(target.velocity.z) < this.max_speed
+    , okay_x = abs(target.velocity.x) < this.max_speed
+    , at_rest = target.atRestY()
+
+  if(!this._target) return
+
+  if(state.forward || state.backward) {
+    this.z_accel_timer = max(0, this.z_accel_timer - dt)
+  }
+  if(state.backward) {
+    if(target.velocity.z < this.max_speed)
+      target.velocity.z = max(min(this.max_speed, speed * dt * this.acceleration(this.z_accel_timer, this.accel_max_timer)), target.velocity.z)
+  } else if(state.forward) {
+    if(target.velocity.z > -this.max_speed)
+      target.velocity.z = min(max(-this.max_speed, -speed * dt * this.acceleration(this.z_accel_timer, this.accel_max_timer)), target.velocity.z)
+  } else {
+    this.z_accel_timer = this.accel_max_timer
+
+  }
+ 
+
+  if(state.left || state.right) {
+    this.x_accel_timer = max(0, this.x_accel_timer - dt)
   }
 
-  if(now - target.last > every) {
-    update_pin(item, target.body)
-    target.last = now 
+  if(state.right) {
+    if(target.velocity.x < this.max_speed)
+      target.velocity.x = max(min(this.max_speed, speed * dt * this.acceleration(this.x_accel_timer, this.accel_max_timer)), target.velocity.x)
+  } else if(state.left) {
+    if(target.velocity.x > -this.max_speed)
+      target.velocity.x = min(max(-this.max_speed, -speed * dt * this.acceleration(this.x_accel_timer, this.accel_max_timer)), target.velocity.x)
+  } else {
+    this.x_accel_timer = this.accel_max_timer
+  }
+
+  if(state.jump) {
+    if(!this.jumping && !at_rest) {
+      // we're falling, we can't jump
+    } else if(at_rest > 0) {
+      // we hit our head
+      this.jumping = false
+    } else {
+      this.jumping = true
+      if(this.jump_timer > 0) {
+        target.velocity.y = min(target.velocity.y + jump_speed * min(dt, this.jump_timer), this.jump_max_speed)
+      }
+      this.jump_timer = max(this.jump_timer - dt, 0)
+    }
+  } else {
+    this.jumping = false
+  }
+  this.jump_timer = at_rest < 0 ? this.jump_max_timer : this.jump_timer
+
+  var can_fire = true
+
+  if(state.fire || state.firealt) {
+    if(this.firing && this.needs_discrete_fire) {
+      this.firing += dt
+    } else {
+      if(!this.fire_rate || floor(this.firing / this.fire_rate) !== floor((this.firing + dt) / this.fire_rate)) {
+        this.onfire(state)
+      }
+      this.firing += dt
+    }
+  } else {
+    this.firing = 0
+  }
+
+  var x_rotation = this.state.x_rotation_accum * this.rotation_scale
+    , y_rotation = this.state.y_rotation_accum * this.rotation_scale
+    , z_rotation = this.state.z_rotation_accum * this.rotation_scale
+    , pitch_target = this._pitch_target
+    , yaw_target = this._yaw_target
+    , roll_target = this._roll_target
+
+  pitch_target.rotation.x = clamp(pitch_target.rotation.x + clamp(x_rotation, this.x_rotation_per_ms), this.x_rotation_clamp)
+  yaw_target.rotation.y = clamp(yaw_target.rotation.y + clamp(y_rotation, this.y_rotation_per_ms), this.y_rotation_clamp)
+  roll_target.rotation.z = clamp(roll_target.rotation.z + clamp(z_rotation, this.z_rotation_per_ms), this.z_rotation_clamp)
+
+  if(this.listeners('data').length) {
+    this.emitUpdate()
+  }
+
+  this.state.x_rotation_accum =
+  this.state.y_rotation_accum =
+  this.state.z_rotation_accum = 0
+}
+
+proto.write = function(changes) {
+  for(var key in changes) {
+    this.state[key] = changes[key]
   }
 }
 
-},{}],18:[function(require,module,exports){
+proto.end = function(deltas) {
+  if(deltas) {
+    this.write(deltas)
+  }
+}
+
+proto.createWriteRotationStream = function() {
+  var state = this.state
+    , stream = new Stream
+
+  state.x_rotation_accum =
+  state.y_rotation_accum =
+  state.z_rotation_accum = 0
+
+  stream.writable = true
+  stream.write = write
+  stream.end = end
+
+  return stream
+
+  function write(changes) {
+    state.x_rotation_accum -= changes.dy || 0
+    state.y_rotation_accum -= changes.dx || 0
+    state.z_rotation_accum += changes.dz || 0
+  }
+
+  function end(deltas) {
+    if(deltas) {
+      stream.write(deltas)
+    }
+  }
+}
+
+proto.emitUpdate = function() {
+  return this.queue({
+      x_rotation_accum: this.state.x_rotation_accum
+    , y_rotation_accum: this.state.y_rotation_accum
+    , z_rotation_accum: this.state.z_rotation_accum
+    , forward: this.state.forward
+    , backward: this.state.backward
+    , left: this.state.left
+    , right: this.state.right
+    , fire: this.state.fire
+    , firealt: this.state.firealt
+    , jump: this.state.jump
+  })
+}
+
+proto.drain = function() {
+  var buf = this.buffer
+    , data
+
+  while(buf.length && !this.paused) {
+    data = buf.shift()
+    if(null === data) {
+      return this.emit('end')
+    }
+    this.emit('data', data)
+  }
+}
+
+proto.resume = function() {
+  this.paused = false
+  this.drain()
+
+  if(!this.paused) {
+    this.emit('drain')
+  }
+  return this
+}
+
+proto.pause = function() {
+  if(this.paused) return
+
+  this.paused = true
+  this.emit('pause')
+  return this
+}
+
+proto.queue = function(data) {
+  this.buffer.push(data)
+  this.drain()
+  return this
+}
+
+proto.acceleration = function(current, max) {
+  // max -> 0
+  var pct = (max - current) / max
+  return sin(PI/2*pct)
+}
+
+proto.target = function(target) {
+  if(target) {
+    this._target = target
+    this._yaw_target = target.yaw || target
+    this._pitch_target = target.pitch || target
+    this._roll_target = target.roll || target
+  }
+  return this._target
+}
+
+proto.onfire = function(_) {
+
+}
+
+function clamp(value, to) {
+  return isFinite(to) ? max(min(value, to), -to) : value
+}
+
+},{"stream":29}],15:[function(require,module,exports){
 (function(process){var THREE, temporaryPosition, temporaryVector
 
 module.exports = function(three, opts) {
@@ -2667,7 +2426,7 @@ View.prototype.appendTo = function(element) {
   this.resizeWindow(this.width,this.height)
 }
 })(require("__browserify_process"))
-},{"__browserify_process":5}],19:[function(require,module,exports){
+},{"__browserify_process":6}],16:[function(require,module,exports){
 (function(process){
 var window = window || {};
 var self = self || {};
@@ -38700,128 +38459,175 @@ if (typeof exports !== 'undefined') {
 }
 
 })(require("__browserify_process"))
-},{"__browserify_process":5}],13:[function(require,module,exports){
-var events = require('events');
-var util = require('util');
+},{"__browserify_process":6}],17:[function(require,module,exports){
+module.exports = inherits
 
-function Stream() {
-  events.EventEmitter.call(this);
+function inherits (c, p, proto) {
+  proto = proto || {}
+  var e = {}
+  ;[c.prototype, proto].forEach(function (s) {
+    Object.getOwnPropertyNames(s).forEach(function (k) {
+      e[k] = Object.getOwnPropertyDescriptor(s, k)
+    })
+  })
+  c.prototype = Object.create(p.prototype, e)
+  c.super = p
 }
-util.inherits(Stream, events.EventEmitter);
-module.exports = Stream;
-// Backwards-compat with node 0.4.x
-Stream.Stream = Stream;
 
-Stream.prototype.pipe = function(dest, options) {
-  var source = this;
+//function Child () {
+//  Child.super.call(this)
+//  console.error([this
+//                ,this.constructor
+//                ,this.constructor === Child
+//                ,this.constructor.super === Parent
+//                ,Object.getPrototypeOf(this) === Child.prototype
+//                ,Object.getPrototypeOf(Object.getPrototypeOf(this))
+//                 === Parent.prototype
+//                ,this instanceof Child
+//                ,this instanceof Parent])
+//}
+//function Parent () {}
+//inherits(Child, Parent)
+//new Child
 
-  function ondata(chunk) {
-    if (dest.writable) {
-      if (false === dest.write(chunk) && source.pause) {
-        source.pause();
+},{}],19:[function(require,module,exports){
+(function(){module.exports = raf
+
+var EE = require('events').EventEmitter
+  , global = typeof window === 'undefined' ? this : window
+
+var _raf =
+  global.requestAnimationFrame ||
+  global.webkitRequestAnimationFrame ||
+  global.mozRequestAnimationFrame ||
+  global.msRequestAnimationFrame ||
+  global.oRequestAnimationFrame ||
+  (global.setImmediate ? function(fn, el) {
+    setImmediate(fn)
+  } :
+  function(fn, el) {
+    setTimeout(fn, 0)
+  })
+
+function raf(el) {
+  var now = raf.now()
+    , ee = new EE
+
+  ee.pause = function() { ee.paused = true }
+  ee.resume = function() { ee.paused = false }
+
+  _raf(iter, el)
+
+  return ee
+
+  function iter(timestamp) {
+    var _now = raf.now()
+      , dt = _now - now
+    
+    now = _now
+
+    ee.emit('data', dt)
+
+    if(!ee.paused) {
+      _raf(iter, el)
+    }
+  }
+}
+
+raf.polyfill = _raf
+raf.now = function() { return Date.now() }
+
+})()
+},{"events":7}],20:[function(require,module,exports){
+module.exports = function(field, tilesize, dimensions, offset) {
+  dimensions = dimensions || [ 
+    Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  , Math.sqrt(field.length) >> 0
+  ] 
+
+  offset = offset || [
+    0
+  , 0
+  , 0
+  ]
+
+  field = typeof field === 'function' ? field : function(x, y, z) {
+    return this[x + y * dimensions[1] + (z * dimensions[1] * dimensions[2])]
+  }.bind(field) 
+
+  var coords
+
+  coords = [0, 0, 0]
+
+  return collide
+
+  function collide(box, vec, oncollision) {
+    if(vec[0] === 0 && vec[1] === 0 && vec[2] === 0) return
+
+    // collide x, then y
+    collideaxis(0)
+    collideaxis(1)
+    collideaxis(2)
+
+    function collideaxis(i_axis) {
+      var j_axis = (i_axis + 1) % 3
+        , k_axis = (i_axis + 2) % 3 
+        , posi = vec[i_axis] > 0
+        , leading = box[posi ? 'max' : 'base'][i_axis] 
+        , dir = posi ? 1 : -1
+        , i_start = Math.floor(leading / tilesize)
+        , i_end = (Math.floor((leading + vec[i_axis]) / tilesize)) + dir
+        , j_start = Math.floor(box.base[j_axis] / tilesize)
+        , j_end = Math.ceil(box.max[j_axis] / tilesize)
+        , k_start = Math.floor(box.base[k_axis] / tilesize) 
+        , k_end = Math.ceil(box.max[k_axis] / tilesize)
+        , done = false
+        , edge_vector
+        , edge
+        , tile
+
+      // loop from the current tile coord to the dest tile coord
+      //    -> loop on the opposite axis to get the other candidates
+      //      -> if `oncollision` return `true` we've hit something and
+      //         should break out of the loops entirely.
+      //         NB: `oncollision` is where the client gets the chance
+      //         to modify the `vec` in-flight.
+      // once we're done translate the box to the vec results
+
+      var step = 0
+      for(var i = i_start; !done && i !== i_end; ++step, i += dir) {
+        if(i < offset[i_axis] || i >= dimensions[i_axis]) continue
+        for(var j = j_start; !done && j !== j_end; ++j) {
+          if(j < offset[j_axis] || j >= dimensions[j_axis]) continue
+          for(var k = k_start; k !== k_end; ++k) {
+            if(k < offset[k_axis] || k >= dimensions[k_axis]) continue
+            coords[i_axis] = i
+            coords[j_axis] = j
+            coords[k_axis] = k
+            tile = field.apply(field, coords)
+
+            if(tile === undefined) continue
+
+            edge = dir > 0 ? i * tilesize : (i + 1) * tilesize
+            edge_vector = edge - leading
+
+            if(oncollision(i_axis, tile, coords, dir, edge_vector)) {
+              done = true
+              break
+            }
+          } 
+        }
       }
+
+      coords[0] = coords[1] = coords[2] = 0
+      coords[i_axis] = vec[i_axis]
+      box.translate(coords)
     }
-  }
+  }  
+}
 
-  source.on('data', ondata);
-
-  function ondrain() {
-    if (source.readable && source.resume) {
-      source.resume();
-    }
-  }
-
-  dest.on('drain', ondrain);
-
-  // If the 'end' option is not supplied, dest.end() will be called when
-  // source gets the 'end' or 'close' events.  Only dest.end() once, and
-  // only when all sources have ended.
-  if (!dest._isStdio && (!options || options.end !== false)) {
-    dest._pipeCount = dest._pipeCount || 0;
-    dest._pipeCount++;
-
-    source.on('end', onend);
-    source.on('close', onclose);
-  }
-
-  var didOnEnd = false;
-  function onend() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.end();
-  }
-
-
-  function onclose() {
-    if (didOnEnd) return;
-    didOnEnd = true;
-
-    dest._pipeCount--;
-
-    // remove the listeners
-    cleanup();
-
-    if (dest._pipeCount > 0) {
-      // waiting for other incoming streams to end.
-      return;
-    }
-
-    dest.destroy();
-  }
-
-  // don't leave dangling pipes when there are errors.
-  function onerror(er) {
-    cleanup();
-    if (this.listeners('error').length === 0) {
-      throw er; // Unhandled stream error in pipe.
-    }
-  }
-
-  source.on('error', onerror);
-  dest.on('error', onerror);
-
-  // remove all the event listeners that were added.
-  function cleanup() {
-    source.removeListener('data', ondata);
-    dest.removeListener('drain', ondrain);
-
-    source.removeListener('end', onend);
-    source.removeListener('close', onclose);
-
-    source.removeListener('error', onerror);
-    dest.removeListener('error', onerror);
-
-    source.removeListener('end', cleanup);
-    source.removeListener('close', cleanup);
-
-    dest.removeListener('end', cleanup);
-    dest.removeListener('close', cleanup);
-  }
-
-  source.on('end', cleanup);
-  source.on('close', cleanup);
-
-  dest.on('end', cleanup);
-  dest.on('close', cleanup);
-
-  dest.emit('pipe', source);
-
-  // Allow for unix-like usage: A.pipe(B).pipe(C)
-  return dest;
-};
-
-},{"events":7,"util":30}],29:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 (function(){/**
  * @fileoverview gl-matrix - High performance matrix and vector operations
  * @author Brandon Jones
@@ -41895,7 +41701,210 @@ if(typeof(exports) !== 'undefined') {
 })();
 
 })()
-},{}],16:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
+module.exports = pin
+
+var pins = {}
+  , stack_holder = {}
+  , pin_holder
+
+function make_pin_for(name, obj) {
+  var container = document.createElement('div')
+    , header = document.createElement('h4')
+    , body = document.createElement('pre')
+
+  container.style.background = 'white'
+  container.style.marginBottom = '4px'
+  container.appendChild(header)
+  container.appendChild(body)
+  header.textContents = header.innerText = obj && obj.repr ? obj.repr() : name
+  body.style.padding = '8px'
+
+
+  if(!pin_holder) {
+    pin_holder = document.createElement('div')
+    pin_holder.style.position = 'absolute'
+    pin_holder.style.top =
+    pin_holder.style.right = '4px'
+
+    document.body.appendChild(pin_holder)
+  }
+
+  pin_holder.appendChild(container)
+
+  return (pins[name] = pins[name] || []).push({body: body, last: -Infinity, for_object: obj}), pins[name]
+}
+
+function update_pin(item, into, retain, depth) {
+  if(!retain) into.innerHTML = ''
+  if(depth > 1) return
+  depth = depth || 0
+
+  switch(typeof item) {
+    case 'number': into.innerText += item.toFixed(3); break
+    case 'string': into.innerText += '"'+item+'"'; break
+    case 'undefined':
+    case 'object':
+      if(item) {
+        for(var key in item) if(item.hasOwnProperty(key)) {
+          into.innerText += key +':'
+          update_pin(item[key], into, true, depth+1)
+          into.innerText += '\n'
+        } 
+        break
+      }
+    case 'boolean': into.innerText += ''+item; break
+  }  
+}
+
+function pin(item, every, obj, name) {
+  if(!name) Error.captureStackTrace(stack_holder)
+  var location = name || stack_holder.stack.split('\n').slice(2)[0].replace(/^\s+at /g, '')
+    , target = pins[location] || make_pin_for(location, obj)
+    , now = Date.now()
+    , every = every || 0
+
+  if(arguments.length < 3) target = target[0]
+  else {
+    for(var i = 0, len = target.length; i < len; ++i) {
+    if(target[i].for_object === obj) {
+      target = target[i]
+      break   
+    }
+  }
+    if(i === len) {
+      pins[location].push(target = make_pin_for(location, obj))
+    }
+  }
+
+  if(now - target.last > every) {
+    update_pin(item, target.body)
+    target.last = now 
+  }
+}
+
+},{}],29:[function(require,module,exports){
+var events = require('events');
+var util = require('util');
+
+function Stream() {
+  events.EventEmitter.call(this);
+}
+util.inherits(Stream, events.EventEmitter);
+module.exports = Stream;
+// Backwards-compat with node 0.4.x
+Stream.Stream = Stream;
+
+Stream.prototype.pipe = function(dest, options) {
+  var source = this;
+
+  function ondata(chunk) {
+    if (dest.writable) {
+      if (false === dest.write(chunk) && source.pause) {
+        source.pause();
+      }
+    }
+  }
+
+  source.on('data', ondata);
+
+  function ondrain() {
+    if (source.readable && source.resume) {
+      source.resume();
+    }
+  }
+
+  dest.on('drain', ondrain);
+
+  // If the 'end' option is not supplied, dest.end() will be called when
+  // source gets the 'end' or 'close' events.  Only dest.end() once, and
+  // only when all sources have ended.
+  if (!dest._isStdio && (!options || options.end !== false)) {
+    dest._pipeCount = dest._pipeCount || 0;
+    dest._pipeCount++;
+
+    source.on('end', onend);
+    source.on('close', onclose);
+  }
+
+  var didOnEnd = false;
+  function onend() {
+    if (didOnEnd) return;
+    didOnEnd = true;
+
+    dest._pipeCount--;
+
+    // remove the listeners
+    cleanup();
+
+    if (dest._pipeCount > 0) {
+      // waiting for other incoming streams to end.
+      return;
+    }
+
+    dest.end();
+  }
+
+
+  function onclose() {
+    if (didOnEnd) return;
+    didOnEnd = true;
+
+    dest._pipeCount--;
+
+    // remove the listeners
+    cleanup();
+
+    if (dest._pipeCount > 0) {
+      // waiting for other incoming streams to end.
+      return;
+    }
+
+    dest.destroy();
+  }
+
+  // don't leave dangling pipes when there are errors.
+  function onerror(er) {
+    cleanup();
+    if (this.listeners('error').length === 0) {
+      throw er; // Unhandled stream error in pipe.
+    }
+  }
+
+  source.on('error', onerror);
+  dest.on('error', onerror);
+
+  // remove all the event listeners that were added.
+  function cleanup() {
+    source.removeListener('data', ondata);
+    dest.removeListener('drain', ondrain);
+
+    source.removeListener('end', onend);
+    source.removeListener('close', onclose);
+
+    source.removeListener('error', onerror);
+    dest.removeListener('error', onerror);
+
+    source.removeListener('end', cleanup);
+    source.removeListener('close', cleanup);
+
+    dest.removeListener('end', cleanup);
+    dest.removeListener('close', cleanup);
+  }
+
+  source.on('end', cleanup);
+  source.on('close', cleanup);
+
+  dest.on('end', cleanup);
+  dest.on('close', cleanup);
+
+  dest.emit('pipe', source);
+
+  // Allow for unix-like usage: A.pipe(B).pipe(C)
+  return dest;
+};
+
+},{"events":7,"util":30}],10:[function(require,module,exports){
 var chunker = require('./chunker')
 
 module.exports = function(opts) {
@@ -41991,7 +42000,7 @@ module.exports.generateExamples = function() {
 }
 
 
-},{"./chunker":31,"./meshers/culled":32,"./meshers/monotone":33,"./meshers/stupid":34,"./meshers/greedy":35}],30:[function(require,module,exports){
+},{"./chunker":31,"./meshers/culled":32,"./meshers/greedy":33,"./meshers/monotone":34,"./meshers/stupid":35}],30:[function(require,module,exports){
 var events = require('events');
 
 exports.isArray = isArray;
@@ -42397,6 +42406,123 @@ if(exports) {
 }
 
 },{}],33:[function(require,module,exports){
+var GreedyMesh = (function() {
+//Cache buffer internally
+var mask = new Int32Array(4096);
+
+return function(volume, dims) {
+  var vertices = [], faces = []
+    , dimsX = dims[0]
+    , dimsY = dims[1]
+    , dimsXY = dimsX * dimsY;
+
+  //Sweep over 3-axes
+  for(var d=0; d<3; ++d) {
+    var i, j, k, l, w, W, h, n, c
+      , u = (d+1)%3
+      , v = (d+2)%3
+      , x = [0,0,0]
+      , q = [0,0,0]
+      , du = [0,0,0]
+      , dv = [0,0,0]
+      , dimsD = dims[d]
+      , dimsU = dims[u]
+      , dimsV = dims[v]
+      , qdimsX, qdimsXY
+      , xd
+
+    if (mask.length < dimsU * dimsV) {
+      mask = new Int32Array(dimsU * dimsV);
+    }
+
+    q[d] =  1;
+    x[d] = -1;
+
+    qdimsX  = dimsX  * q[1]
+    qdimsXY = dimsXY * q[2]
+
+    // Compute mask
+    while (x[d] < dimsD) {
+      xd = x[d]
+      n = 0;
+
+      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
+        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
+          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
+            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
+          if (a ? b : !b) {
+            mask[n] = 0; continue;
+          }
+          mask[n] = a ? a : -b;
+        }
+      }
+
+      ++x[d];
+
+      // Generate mesh for mask using lexicographic ordering
+      n = 0;
+      for (j=0; j < dimsV; ++j) {
+        for (i=0; i < dimsU; ) {
+          c = mask[n];
+          if (!c) {
+            i++;  n++; continue;
+          }
+
+          //Compute width
+          w = 1;
+          while (c === mask[n+w] && i+w < dimsU) w++;
+
+          //Compute height (this is slightly awkward)
+          for (h=1; j+h < dimsV; ++h) {
+            k = 0;
+            while (k < w && c === mask[n+k+h*dimsU]) k++
+            if (k < w) break;
+          }
+
+          // Add quad
+          // The du/dv arrays are reused/reset
+          // for each iteration.
+          du[d] = 0; dv[d] = 0;
+          x[u]  = i;  x[v] = j;
+
+          if (c > 0) {
+            dv[v] = h; dv[u] = 0;
+            du[u] = w; du[v] = 0;
+          } else {
+            c = -c;
+            du[v] = h; du[u] = 0;
+            dv[u] = w; dv[v] = 0;
+          }
+          var vertex_count = vertices.length;
+          vertices.push([x[0],             x[1],             x[2]            ]);
+          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
+          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
+          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
+          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
+
+          //Zero-out mask
+          W = n + w;
+          for(l=0; l<h; ++l) {
+            for(k=n; k<W; ++k) {
+              mask[k+l*dimsU] = 0;
+            }
+          }
+
+          //Increment counters and continue
+          i += w; n += w;
+        }
+      }
+    }
+  }
+  return { vertices:vertices, faces:faces };
+}
+})();
+
+if(exports) {
+  exports.mesher = GreedyMesh;
+}
+
+},{}],34:[function(require,module,exports){
 "use strict";
 
 var MonotoneMesh = (function(){
@@ -42649,7 +42775,7 @@ if(exports) {
   exports.mesher = MonotoneMesh;
 }
 
-},{}],34:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 //The stupidest possible way to generate a Minecraft mesh (I think)
 function StupidMesh(volume, dims) {
   var vertices = [], faces = [], x = [0,0,0], n = 0;
@@ -42685,123 +42811,6 @@ if(exports) {
   exports.mesher = StupidMesh;
 }
 
-},{}],35:[function(require,module,exports){
-var GreedyMesh = (function() {
-//Cache buffer internally
-var mask = new Int32Array(4096);
-
-return function(volume, dims) {
-  var vertices = [], faces = []
-    , dimsX = dims[0]
-    , dimsY = dims[1]
-    , dimsXY = dimsX * dimsY;
-
-  //Sweep over 3-axes
-  for(var d=0; d<3; ++d) {
-    var i, j, k, l, w, W, h, n, c
-      , u = (d+1)%3
-      , v = (d+2)%3
-      , x = [0,0,0]
-      , q = [0,0,0]
-      , du = [0,0,0]
-      , dv = [0,0,0]
-      , dimsD = dims[d]
-      , dimsU = dims[u]
-      , dimsV = dims[v]
-      , qdimsX, qdimsXY
-      , xd
-
-    if (mask.length < dimsU * dimsV) {
-      mask = new Int32Array(dimsU * dimsV);
-    }
-
-    q[d] =  1;
-    x[d] = -1;
-
-    qdimsX  = dimsX  * q[1]
-    qdimsXY = dimsXY * q[2]
-
-    // Compute mask
-    while (x[d] < dimsD) {
-      xd = x[d]
-      n = 0;
-
-      for(x[v] = 0; x[v] < dimsV; ++x[v]) {
-        for(x[u] = 0; x[u] < dimsU; ++x[u], ++n) {
-          var a = xd >= 0      && volume[x[0]      + dimsX * x[1]          + dimsXY * x[2]          ]
-            , b = xd < dimsD-1 && volume[x[0]+q[0] + dimsX * x[1] + qdimsX + dimsXY * x[2] + qdimsXY]
-          if (a ? b : !b) {
-            mask[n] = 0; continue;
-          }
-          mask[n] = a ? a : -b;
-        }
-      }
-
-      ++x[d];
-
-      // Generate mesh for mask using lexicographic ordering
-      n = 0;
-      for (j=0; j < dimsV; ++j) {
-        for (i=0; i < dimsU; ) {
-          c = mask[n];
-          if (!c) {
-            i++;  n++; continue;
-          }
-
-          //Compute width
-          w = 1;
-          while (c === mask[n+w] && i+w < dimsU) w++;
-
-          //Compute height (this is slightly awkward)
-          for (h=1; j+h < dimsV; ++h) {
-            k = 0;
-            while (k < w && c === mask[n+k+h*dimsU]) k++
-            if (k < w) break;
-          }
-
-          // Add quad
-          // The du/dv arrays are reused/reset
-          // for each iteration.
-          du[d] = 0; dv[d] = 0;
-          x[u]  = i;  x[v] = j;
-
-          if (c > 0) {
-            dv[v] = h; dv[u] = 0;
-            du[u] = w; du[v] = 0;
-          } else {
-            c = -c;
-            du[v] = h; du[u] = 0;
-            dv[u] = w; dv[v] = 0;
-          }
-          var vertex_count = vertices.length;
-          vertices.push([x[0],             x[1],             x[2]            ]);
-          vertices.push([x[0]+du[0],       x[1]+du[1],       x[2]+du[2]      ]);
-          vertices.push([x[0]+du[0]+dv[0], x[1]+du[1]+dv[1], x[2]+du[2]+dv[2]]);
-          vertices.push([x[0]      +dv[0], x[1]      +dv[1], x[2]      +dv[2]]);
-          faces.push([vertex_count, vertex_count+1, vertex_count+2, vertex_count+3, c]);
-
-          //Zero-out mask
-          W = n + w;
-          for(l=0; l<h; ++l) {
-            for(k=n; k<W; ++k) {
-              mask[k+l*dimsU] = 0;
-            }
-          }
-
-          //Increment counters and continue
-          i += w; n += w;
-        }
-      }
-    }
-  }
-  return { vertices:vertices, faces:faces };
-}
-})();
-
-if(exports) {
-  exports.mesher = GreedyMesh;
-}
-
 },{}],36:[function(require,module,exports){
 module.exports = Indexer;
 
@@ -42833,7 +42842,7 @@ Indexer.prototype.voxel = function (pos) {
     return x + y*size + z*size*size;
 };
 
-},{}],17:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 var voxel = require('voxel');
 var ChunkMatrix = require('./lib/chunk_matrix');
 var indexer = require('./lib/indexer');
@@ -42924,7 +42933,7 @@ Group.prototype.getIndex = function (pos) {
     return { chunk: ci, voxel: vi };
 };
 
-},{"./lib/chunk_matrix":37,"./lib/indexer":36,"voxel":38}],21:[function(require,module,exports){
+},{"./lib/chunk_matrix":37,"./lib/indexer":36,"voxel":38}],18:[function(require,module,exports){
 var lock = require('pointer-lock')
   , drag = require('drag-stream')
   , full = require('fullscreen')
@@ -43031,7 +43040,7 @@ function usedrag(el) {
   return ee
 }
 
-},{"events":7,"stream":13,"pointer-lock":39,"fullscreen":40,"drag-stream":41}],23:[function(require,module,exports){
+},{"events":7,"stream":29,"pointer-lock":39,"drag-stream":40,"fullscreen":41}],24:[function(require,module,exports){
 var ever = require('ever')
   , vkey = require('vkey')
   , max = Math.max
@@ -43128,7 +43137,401 @@ module.exports = function(el, bindings, state) {
   }
 }
 
-},{"ever":42,"vkey":43}],20:[function(require,module,exports){
+},{"ever":42,"vkey":43}],39:[function(require,module,exports){
+module.exports = pointer
+
+pointer.available = available
+
+var EE = require('events').EventEmitter
+  , Stream = require('stream').Stream
+
+function available() {
+  return !!shim(document.body)
+}
+
+function pointer(el) {
+  var ael = el.addEventListener || el.attachEvent
+    , rel = el.removeEventListener || el.detachEvent
+    , doc = el.ownerDocument
+    , body = doc.body
+    , rpl = shim(el) 
+    , out = {dx: 0, dy: 0, dt: 0}
+    , ee = new EE
+    , stream = null
+    , lastPageX, lastPageY
+    , needsFullscreen = false
+    , mouseDownMS
+
+  ael.call(el, 'mousedown', onmousedown, false)
+  ael.call(el, 'mouseup', onmouseup, false)
+  ael.call(body, 'mousemove', onmove, false)
+
+  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
+
+  for(var i = 0, len = vendors.length; i < len; ++i) {
+    ael.call(doc, vendors[i]+'pointerlockchange', onpointerlockchange)
+    ael.call(doc, vendors[i]+'pointerlockerror', onpointerlockerror)
+  }
+
+  ee.release = release
+  ee.target = pointerlockelement
+  ee.request = onmousedown
+  ee.destroy = function() {
+    rel.call(el, 'mouseup', onmouseup, false)
+    rel.call(el, 'mousedown', onmousedown, false)
+    rel.call(el, 'mousemove', onmove, false)
+  }
+
+  if(!shim) {
+    setTimeout(function() {
+      ee.emit('error', new Error('pointer lock is not supported'))
+    }, 0)
+  }
+  return ee
+
+  function onmousedown(ev) {
+    if(pointerlockelement()) {
+      return
+    }
+    mouseDownMS = +new Date
+    rpl.call(el)
+  }
+
+  function onmouseup(ev) {
+    if(!needsFullscreen) {
+      return
+    }
+
+    ee.emit('needs-fullscreen')
+    needsFullscreen = false
+  }
+
+  function onpointerlockchange(ev) {
+    if(!pointerlockelement()) {
+      if(stream) release()
+      return
+    }
+
+    stream = new Stream
+    stream.readable = true
+    stream.initial = {x: lastPageX, y: lastPageY, t: Date.now()}
+
+    ee.emit('attain', stream)
+  }
+
+  function onpointerlockerror(ev) {
+    var dt = +(new Date) - mouseDownMS
+    if(dt < 100) {
+      // we errored immediately, we need to do fullscreen first.
+      needsFullscreen = true
+      return
+    }
+
+    if(stream) {
+      stream.emit('error', ev)
+      stream = null
+    }
+  }
+
+  function release() {
+    ee.emit('release')
+
+    if(stream) {
+      stream.emit('end')
+      stream.readable = false
+      stream.emit('close')
+      stream = null
+    }
+
+    var pel = pointerlockelement()
+    if(!pel) {
+      return
+    }
+
+    (doc.exitPointerLock ||
+    doc.mozExitPointerLock ||
+    doc.webkitExitPointerLock ||
+    doc.msExitPointerLock ||
+    doc.oExitPointerLock).call(doc)
+  }
+
+  function onmove(ev) {
+    lastPageX = ev.pageX
+    lastPageY = ev.pageY
+
+    if(!stream) return
+
+    // we're reusing a single object
+    // because I'd like to avoid piling up
+    // a ton of objects for the garbage
+    // collector.
+    out.dx =
+      ev.movementX || ev.webkitMovementX ||
+      ev.mozMovementX || ev.msMovementX ||
+      ev.oMovementX || 0
+
+    out.dy = 
+      ev.movementY || ev.webkitMovementY ||
+      ev.mozMovementY || ev.msMovementY ||
+      ev.oMovementY || 0
+
+    out.dt = Date.now() - stream.initial.t
+
+    ee.emit('data', out)
+    stream.emit('data', out)
+  }
+
+  function pointerlockelement() {
+    return 0 ||
+      doc.pointerLockElement ||
+      doc.mozPointerLockElement ||
+      doc.webkitPointerLockElement ||
+      doc.msPointerLockElement ||
+      doc.oPointerLockElement ||
+      null
+  }
+}
+
+function shim(el) {
+  return el.requestPointerLock ||
+    el.webkitRequestPointerLock ||
+    el.mozRequestPointerLock ||
+    el.msRequestPointerLock ||
+    el.oRequestPointerLock ||
+    null
+}
+
+},{"events":7,"stream":29}],41:[function(require,module,exports){
+module.exports = fullscreen
+fullscreen.available = available
+
+var EE = require('events').EventEmitter
+
+function available() {
+  return !!shim(document.body)
+}
+
+function fullscreen(el) {
+  var ael = el.addEventListener || el.attachEvent
+    , doc = el.ownerDocument
+    , body = doc.body
+    , rfs = shim(el)
+    , ee = new EE
+
+  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
+
+  for(var i = 0, len = vendors.length; i < len; ++i) {
+    ael.call(doc, vendors[i]+'fullscreenchange', onfullscreenchange)
+    ael.call(doc, vendors[i]+'fullscreenerror', onfullscreenerror)
+  }
+
+  ee.release = release
+  ee.request = request
+  ee.target = fullscreenelement
+
+  if(!shim) {
+    setTimeout(function() {
+      ee.emit('error', new Error('fullscreen is not supported'))
+    }, 0)
+  }
+  return ee
+
+  function onfullscreenchange() {
+    if(!fullscreenelement()) {
+      return ee.emit('release')
+    }
+    ee.emit('attain')
+  }
+
+  function onfullscreenerror() {
+    ee.emit('error')
+  }
+
+  function request() {
+    return rfs.call(el)
+  }
+
+  function release() {
+    (el.exitFullscreen ||
+    el.exitFullscreen ||
+    el.webkitExitFullScreen ||
+    el.webkitExitFullscreen ||
+    el.mozExitFullScreen ||
+    el.mozExitFullscreen ||
+    el.msExitFullScreen ||
+    el.msExitFullscreen ||
+    el.oExitFullScreen ||
+    el.oExitFullscreen).call(el)
+  } 
+
+  function fullscreenelement() {
+    return 0 ||
+      doc.fullScreenElement ||
+      doc.fullscreenElement ||
+      doc.webkitFullScreenElement ||
+      doc.webkitFullscreenElement ||
+      doc.mozFullScreenElement ||
+      doc.mozFullscreenElement ||
+      doc.msFullScreenElement ||
+      doc.msFullscreenElement ||
+      doc.oFullScreenElement ||
+      doc.oFullscreenElement ||
+      null
+  }
+}
+
+function shim(el) {
+  return (el.requestFullscreen ||
+    el.webkitRequestFullscreen ||
+    el.webkitRequestFullScreen ||
+    el.mozRequestFullscreen ||
+    el.mozRequestFullScreen ||
+    el.msRequestFullscreen ||
+    el.msRequestFullScreen ||
+    el.oRequestFullscreen ||
+    el.oRequestFullScreen)
+}
+
+},{"events":7}],43:[function(require,module,exports){
+(function(){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
+  , isOSX = /OS X/.test(ua)
+  , isOpera = /Opera/.test(ua)
+  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
+
+var i, output = module.exports = {
+  0:  isOSX ? '<menu>' : '<UNK>'
+, 1:  '<mouse 1>'
+, 2:  '<mouse 2>'
+, 3:  '<break>'
+, 4:  '<mouse 3>'
+, 5:  '<mouse 4>'
+, 6:  '<mouse 5>'
+, 8:  '<backspace>'
+, 9:  '<tab>'
+, 12: '<clear>'
+, 13: '<enter>'
+, 16: '<shift>'
+, 17: '<control>'
+, 18: '<alt>'
+, 19: '<pause>'
+, 20: '<caps-lock>'
+, 21: '<ime-hangul>'
+, 23: '<ime-junja>'
+, 24: '<ime-final>'
+, 25: '<ime-kanji>'
+, 27: '<escape>'
+, 28: '<ime-convert>'
+, 29: '<ime-nonconvert>'
+, 30: '<ime-accept>'
+, 31: '<ime-mode-change>'
+, 27: '<escape>'
+, 32: '<space>'
+, 33: '<page-up>'
+, 34: '<page-down>'
+, 35: '<end>'
+, 36: '<home>'
+, 37: '<left>'
+, 38: '<up>'
+, 39: '<right>'
+, 40: '<down>'
+, 41: '<select>'
+, 42: '<print>'
+, 43: '<execute>'
+, 44: '<snapshot>'
+, 45: '<insert>'
+, 46: '<delete>'
+, 47: '<help>'
+, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
+, 92: '<meta>'  // meta-right
+, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
+, 95: '<sleep>'
+, 106: '<num-*>'
+, 107: '<num-+>'
+, 108: '<num-enter>'
+, 109: '<num-->'
+, 110: '<num-.>'
+, 111: '<num-/>'
+, 144: '<num-lock>'
+, 145: '<scroll-lock>'
+, 160: '<shift-left>'
+, 161: '<shift-right>'
+, 162: '<control-left>'
+, 163: '<control-right>'
+, 164: '<alt-left>'
+, 165: '<alt-right>'
+, 166: '<browser-back>'
+, 167: '<browser-forward>'
+, 168: '<browser-refresh>'
+, 169: '<browser-stop>'
+, 170: '<browser-search>'
+, 171: '<browser-favorites>'
+, 172: '<browser-home>'
+
+  // ff/osx reports '<volume-mute>' for '-'
+, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
+, 174: '<volume-down>'
+, 175: '<volume-up>'
+, 176: '<next-track>'
+, 177: '<prev-track>'
+, 178: '<stop>'
+, 179: '<play-pause>'
+, 180: '<launch-mail>'
+, 181: '<launch-media-select>'
+, 182: '<launch-app 1>'
+, 183: '<launch-app 2>'
+, 186: ';'
+, 187: '='
+, 188: ','
+, 189: '-'
+, 190: '.'
+, 191: '/'
+, 192: '`'
+, 219: '['
+, 220: '\\'
+, 221: ']'
+, 222: "'"
+, 223: '<meta>'
+, 224: '<meta>'       // firefox reports meta here.
+, 226: '<alt-gr>'
+, 229: '<ime-process>'
+, 231: isOpera ? '`' : '<unicode>'
+, 246: '<attention>'
+, 247: '<crsel>'
+, 248: '<exsel>'
+, 249: '<erase-eof>'
+, 250: '<play>'
+, 251: '<zoom>'
+, 252: '<no-name>'
+, 253: '<pa-1>'
+, 254: '<clear>'
+}
+
+for(i = 58; i < 65; ++i) {
+  output[i] = String.fromCharCode(i)
+}
+
+// 0-9
+for(i = 48; i < 58; ++i) {
+  output[i] = (i - 48)+''
+}
+
+// A-Z
+for(i = 65; i < 91; ++i) {
+  output[i] = String.fromCharCode(i)
+}
+
+// num0-9
+for(i = 96; i < 107; ++i) {
+  output[i] = '<num-'+(i - 96)+'>'
+}
+
+// F1-F24
+for(i = 112; i < 136; ++i) {
+  output[i] = 'F'+(i-111)
+}
+
+})()
+},{}],11:[function(require,module,exports){
 var THREE = require('three')
 
 module.exports = function(data, mesher, scaleFactor, three) {
@@ -43298,7 +43701,136 @@ Mesh.prototype.faceVertexUv = function(i) {
 }
 ;
 
-},{"three":19}],22:[function(require,module,exports){
+},{"three":16}],44:[function(require,module,exports){
+function opaque(image) {
+  var canvas, ctx
+
+  if (image.nodeName.toLowerCase() === 'img') {
+    canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    ctx = canvas.getContext('2d')
+    ctx.drawImage(image, 0, 0)
+  } else {
+    canvas = image
+    ctx = canvas.getContext('2d')
+  }
+
+  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
+    , data = imageData.data
+
+  for (var i = 3, l = data.length; i < l; i += 4)
+    if (data[i] !== 255)
+      return false
+
+  return true
+};
+
+module.exports = opaque
+module.exports.opaque = opaque
+module.exports.transparent = function(image) {
+  return !opaque(image)
+};
+},{}],21:[function(require,module,exports){
+module.exports = AABB
+
+var vec3 = require('gl-matrix').vec3
+
+function AABB(pos, vec) {
+  if(!(this instanceof AABB)) {
+    return new AABB(pos, vec)
+  }
+
+  this.base = pos
+  this.vec = vec
+
+  this.mag = vec3.length(this.vec)
+
+  this.max = vec3.create()
+  vec3.add(this.max, this.base, this.vec)
+}
+
+var cons = AABB
+  , proto = cons.prototype
+
+proto.width = function() {
+  return this.vec[0]
+}
+
+proto.height = function() {
+  return this.vec[1]
+}
+
+proto.depth = function() {
+  return this.vec[2]
+}
+
+proto.x0 = function() {
+  return this.base[0]
+}
+
+proto.y0 = function() {
+  return this.base[1]
+}
+
+proto.z0 = function() {
+  return this.base[2]
+}
+
+proto.x1 = function() {
+  return this.max[0]
+}
+
+proto.y1 = function() {
+  return this.max[1]
+}
+
+proto.z1 = function() {
+  return this.max[2]
+}
+
+proto.translate = function(by) {
+  vec3.add(this.max, this.max, by)
+  vec3.add(this.base, this.base, by)
+  return this
+}
+
+proto.expand = function(aabb) {
+  var max = vec3.create()
+    , min = vec3.create()
+
+  vec3.max(max, aabb.max, this.max)
+  vec3.min(min, aabb.base, this.base)
+  vec3.sub(max, max, min)
+
+  return new AABB(min, max)
+}
+
+proto.intersects = function(aabb) {
+  if(aabb.base[0] > this.max[0]) return false
+  if(aabb.base[1] > this.max[1]) return false
+  if(aabb.base[2] > this.max[2]) return false
+  if(aabb.max[0] < this.base[0]) return false
+  if(aabb.max[1] < this.base[1]) return false
+  if(aabb.max[2] < this.base[2]) return false
+
+  return true
+}
+
+proto.union = function(aabb) {
+  if(!this.intersects(aabb)) return null
+
+  var base_x = Math.max(aabb.base[0], this.base[0])
+    , base_y = Math.max(aabb.base[1], this.base[1])
+    , base_z = Math.max(aabb.base[2], this.base[2])
+    , max_x = Math.min(aabb.max[0], this.max[0])
+    , max_y = Math.min(aabb.max[1], this.max[1])
+    , max_z = Math.min(aabb.max[2], this.max[2])
+
+  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
+}
+
+},{"gl-matrix":22}],23:[function(require,module,exports){
 module.exports = SpatialEventEmitter
 
 var slice = [].slice
@@ -43430,176 +43962,224 @@ function finite(bbox) {
          isFinite(bbox.z1())
 }
 
-},{"./tree":44,"aabb-3d":27}],43:[function(require,module,exports){
-(function(){var ua = typeof window !== 'undefined' ? window.navigator.userAgent : ''
-  , isOSX = /OS X/.test(ua)
-  , isOpera = /Opera/.test(ua)
-  , maybeFirefox = !/like Gecko/.test(ua) && !isOpera
+},{"./tree":45,"aabb-3d":21}],25:[function(require,module,exports){
+module.exports = physical
 
-var i, output = module.exports = {
-  0:  isOSX ? '<menu>' : '<UNK>'
-, 1:  '<mouse 1>'
-, 2:  '<mouse 2>'
-, 3:  '<break>'
-, 4:  '<mouse 3>'
-, 5:  '<mouse 4>'
-, 6:  '<mouse 5>'
-, 8:  '<backspace>'
-, 9:  '<tab>'
-, 12: '<clear>'
-, 13: '<enter>'
-, 16: '<shift>'
-, 17: '<control>'
-, 18: '<alt>'
-, 19: '<pause>'
-, 20: '<caps-lock>'
-, 21: '<ime-hangul>'
-, 23: '<ime-junja>'
-, 24: '<ime-final>'
-, 25: '<ime-kanji>'
-, 27: '<escape>'
-, 28: '<ime-convert>'
-, 29: '<ime-nonconvert>'
-, 30: '<ime-accept>'
-, 31: '<ime-mode-change>'
-, 27: '<escape>'
-, 32: '<space>'
-, 33: '<page-up>'
-, 34: '<page-down>'
-, 35: '<end>'
-, 36: '<home>'
-, 37: '<left>'
-, 38: '<up>'
-, 39: '<right>'
-, 40: '<down>'
-, 41: '<select>'
-, 42: '<print>'
-, 43: '<execute>'
-, 44: '<snapshot>'
-, 45: '<insert>'
-, 46: '<delete>'
-, 47: '<help>'
-, 91: '<meta>'  // meta-left -- no one handles left and right properly, so we coerce into one.
-, 92: '<meta>'  // meta-right
-, 93: isOSX ? '<meta>' : '<menu>'      // chrome,opera,safari all report this for meta-right (osx mbp).
-, 95: '<sleep>'
-, 106: '<num-*>'
-, 107: '<num-+>'
-, 108: '<num-enter>'
-, 109: '<num-->'
-, 110: '<num-.>'
-, 111: '<num-/>'
-, 144: '<num-lock>'
-, 145: '<scroll-lock>'
-, 160: '<shift-left>'
-, 161: '<shift-right>'
-, 162: '<control-left>'
-, 163: '<control-right>'
-, 164: '<alt-left>'
-, 165: '<alt-right>'
-, 166: '<browser-back>'
-, 167: '<browser-forward>'
-, 168: '<browser-refresh>'
-, 169: '<browser-stop>'
-, 170: '<browser-search>'
-, 171: '<browser-favorites>'
-, 172: '<browser-home>'
+var aabb = require('aabb-3d')
+  , THREE = require('three')
 
-  // ff/osx reports '<volume-mute>' for '-'
-, 173: isOSX && maybeFirefox ? '-' : '<volume-mute>'
-, 174: '<volume-down>'
-, 175: '<volume-up>'
-, 176: '<next-track>'
-, 177: '<prev-track>'
-, 178: '<stop>'
-, 179: '<play-pause>'
-, 180: '<launch-mail>'
-, 181: '<launch-media-select>'
-, 182: '<launch-app 1>'
-, 183: '<launch-app 2>'
-, 186: ';'
-, 187: '='
-, 188: ','
-, 189: '-'
-, 190: '.'
-, 191: '/'
-, 192: '`'
-, 219: '['
-, 220: '\\'
-, 221: ']'
-, 222: "'"
-, 223: '<meta>'
-, 224: '<meta>'       // firefox reports meta here.
-, 226: '<alt-gr>'
-, 229: '<ime-process>'
-, 231: isOpera ? '`' : '<unicode>'
-, 246: '<attention>'
-, 247: '<crsel>'
-, 248: '<exsel>'
-, 249: '<erase-eof>'
-, 250: '<play>'
-, 251: '<zoom>'
-, 252: '<no-name>'
-, 253: '<pa-1>'
-, 254: '<clear>'
+function physical(avatar, collidables, dimensions, terminal) {
+  return new Physical(avatar, collidables, dimensions, terminal)
 }
 
-for(i = 58; i < 65; ++i) {
-  output[i] = String.fromCharCode(i)
+function Physical(avatar, collidables, dimensions, terminal) {
+  this.avatar = avatar
+  this.terminal = terminal || new THREE.Vector3(30, 5.6, 30)
+  this.dimensions = dimensions = dimensions || [1, 1, 1]
+  this._aabb = aabb([0, 0, 0], dimensions)
+  this.resting = {x: false, y: false, z: false}
+  this.collidables = collidables
+  this.friction = new THREE.Vector3(1, 1, 1)
+
+  this.rotation = this.avatar.rotation
+  this.default_friction = 1
+
+  // default yaw/pitch/roll controls to the avatar
+  this.yaw =
+  this.pitch =
+  this.roll = avatar
+
+  this.forces = new THREE.Vector3(0, 0, 0)
+  this.attractors = []
+  this.acceleration = new THREE.Vector3(0, 0, 0)
+  this.velocity = new THREE.Vector3(0, 0, 0)
 }
 
-// 0-9
-for(i = 48; i < 58; ++i) {
-  output[i] = (i - 48)+''
+var cons = Physical
+  , proto = cons.prototype
+  , axes = ['x', 'y', 'z']
+  , abs = Math.abs
+
+// make these *once*, so we're not generating
+// garbage for every object in the game.
+var WORLD_DESIRED = new THREE.Vector3(0, 0, 0)
+  , DESIRED = new THREE.Vector3(0, 0, 0)
+  , START = new THREE.Vector3(0, 0, 0)
+  , END = new THREE.Vector3(0, 0, 0)
+  , DIRECTION = new THREE.Vector3()
+  , LOCAL_ATTRACTOR = new THREE.Vector3()
+  , TOTAL_FORCES = new THREE.Vector3()
+
+proto.applyWorldAcceleration = applyTo('acceleration')
+proto.applyWorldVelocity = applyTo('velocity')
+
+function applyTo(which) {
+  return function(world) {
+    var local = this.avatar.worldToLocal(world)
+    this[which].x += local.x
+    this[which].y += local.y
+    this[which].z += local.z
+  }
 }
 
-// A-Z
-for(i = 65; i < 91; ++i) {
-  output[i] = String.fromCharCode(i)
-}
+proto.tick = function(dt) {
+  var forces = this.forces
+    , acceleration = this.acceleration
+    , velocity = this.velocity
+    , terminal = this.terminal
+    , friction = this.friction
+    , desired = DESIRED
+    , world_desired = WORLD_DESIRED
+    , bbox
+    , pcs
+  TOTAL_FORCES.multiplyScalar(0)
 
-// num0-9
-for(i = 96; i < 107; ++i) {
-  output[i] = '<num-'+(i - 96)+'>'
-}
+  desired.x =
+  desired.y =
+  desired.z =
+  world_desired.x =
+  world_desired.y =
+  world_desired.z = 0
 
-// F1-F24
-for(i = 112; i < 136; ++i) {
-  output[i] = 'F'+(i-111)
-}
+  for(var i = 0; i < this.attractors.length; i++) {
+    var distance_factor = this.avatar.position.distanceToSquared(this.attractors[i])
+    LOCAL_ATTRACTOR.copy(this.attractors[i])
+    LOCAL_ATTRACTOR = this.avatar.worldToLocal(LOCAL_ATTRACTOR)
 
-})()
-},{}],45:[function(require,module,exports){
-function opaque(image) {
-  var canvas, ctx
+    DIRECTION.sub(LOCAL_ATTRACTOR, this.avatar.position)
 
-  if (image.nodeName.toLowerCase() === 'img') {
-    canvas = document.createElement('canvas')
-    canvas.width = image.width
-    canvas.height = image.height
-    ctx = canvas.getContext('2d')
-    ctx.drawImage(image, 0, 0)
+    DIRECTION.divideScalar(DIRECTION.length() * distance_factor)
+    DIRECTION.multiplyScalar(this.attractors[i].mass)
+
+    TOTAL_FORCES.addSelf(DIRECTION)
+  }
+  
+  if(!this.resting.x) {
+    acceleration.x /= 8 * dt
+    acceleration.x += TOTAL_FORCES.x * dt
+    acceleration.x += forces.x * dt
+
+    velocity.x += acceleration.x * dt
+    velocity.x *= friction.x
+
+    if(abs(velocity.x) < terminal.x) {
+      desired.x = (velocity.x * dt)
+    } else if(velocity.x !== 0) {
+      desired.x = (velocity.x / abs(velocity.x)) * terminal.x
+    }
   } else {
-    canvas = image
-    ctx = canvas.getContext('2d')
+    acceleration.x = velocity.x = 0
+  }
+  if(!this.resting.y) {
+    acceleration.y /= 8 * dt
+    acceleration.y += TOTAL_FORCES.y * dt
+    acceleration.y += forces.y * dt
+
+    velocity.y += acceleration.y * dt
+    velocity.y *= friction.y
+
+    if(abs(velocity.y) < terminal.y) {
+      desired.y = (velocity.y * dt)
+    } else if(velocity.y !== 0) {
+      desired.y = (velocity.y / abs(velocity.y)) * terminal.y
+    }
+  } else {
+    acceleration.y = velocity.y = 0
+  }
+  if(!this.resting.z) {
+    acceleration.z /= 8 * dt
+    acceleration.z += TOTAL_FORCES.z * dt
+    acceleration.z += forces.z * dt
+
+    velocity.z += acceleration.z * dt
+    velocity.z *= friction.z
+
+    if(abs(velocity.z) < terminal.z) {
+      desired.z = (velocity.z * dt)
+    } else if(velocity.z !== 0) {
+      desired.z = (velocity.z / abs(velocity.z)) * terminal.z
+    }
+  } else {
+    acceleration.z = velocity.z = 0
+  }
+  
+  START.copy(this.avatar.position)
+  this.avatar.translateX(desired.x)
+  this.avatar.translateY(desired.y)
+  this.avatar.translateZ(desired.z)
+  END.copy(this.avatar.position)
+  this.avatar.position.copy(START)
+  world_desired.x = END.x - START.x
+  world_desired.y = END.y - START.y
+  world_desired.z = END.z - START.z
+  this.friction.x =
+  this.friction.y =
+  this.friction.z = this.default_friction
+
+  // run collisions
+  this.resting.x =
+  this.resting.y =
+  this.resting.z = false
+
+  bbox = this.aabb()
+  pcs = this.collidables
+
+  for(var i = 0, len = pcs.length; i < len; ++i) {
+    if(pcs[i] !== this) {
+      pcs[i].collide(this, bbox, world_desired, this.resting)
+    }
   }
 
-  var imageData = ctx.getImageData(0, 0, canvas.height, canvas.width)
-    , data = imageData.data
+  // apply translation
+  this.avatar.position.x += world_desired.x
+  this.avatar.position.y += world_desired.y
+  this.avatar.position.z += world_desired.z
+}
 
-  for (var i = 3, l = data.length; i < l; i += 4)
-    if (data[i] !== 255)
-      return false
+proto.subjectTo = function(force) {
+  this.forces.x += force[0]
+  this.forces.y += force[1]
+  this.forces.z += force[2]
+  return this
+}
 
-  return true
-};
+proto.removeForce = function(force) {
+  this.forces.x -= force[0]
+  this.forces.y -= force[1]
+  this.forces.z -= force[2]
+  return this
+}
 
-module.exports = opaque
-module.exports.opaque = opaque
-module.exports.transparent = function(image) {
-  return !opaque(image)
-};
-},{}],25:[function(require,module,exports){
+proto.attractTo = function(vector, mass) {
+  vector.mass = mass
+  this.attractors.push(vector)
+}
+
+proto.aabb = function() {
+  return aabb(
+      [this.avatar.position.x, this.avatar.position.y, this.avatar.position.z]
+    , this.dimensions
+  )
+}
+
+// no object -> object collisions for now, thanks
+proto.collide = function(other, bbox, world_vec, resting) {
+  return
+}
+
+proto.atRestX = function() {
+  return this.resting.x
+}
+
+proto.atRestY = function() {
+  return this.resting.y
+}
+
+proto.atRestZ = function() {
+  return this.resting.z
+}
+
+},{"aabb-3d":21,"three":16}],27:[function(require,module,exports){
 var transparent = require('opaque').transparent;
 
 function Texture(opts) {
@@ -43817,7 +44397,7 @@ function defaults(obj) {
   return obj;
 }
 
-},{"opaque":45,"three":19}],26:[function(require,module,exports){
+},{"opaque":44,"three":16}],28:[function(require,module,exports){
 module.exports = coordinates
 
 var aabb = require('aabb-3d')
@@ -43845,578 +44425,7 @@ function coordinates(spatial, box, regionWidth) {
  
   return emitter
 }
-},{"events":7,"aabb-3d":27}],39:[function(require,module,exports){
-module.exports = pointer
-
-pointer.available = available
-
-var EE = require('events').EventEmitter
-  , Stream = require('stream').Stream
-
-function available() {
-  return !!shim(document.body)
-}
-
-function pointer(el) {
-  var ael = el.addEventListener || el.attachEvent
-    , rel = el.removeEventListener || el.detachEvent
-    , doc = el.ownerDocument
-    , body = doc.body
-    , rpl = shim(el) 
-    , out = {dx: 0, dy: 0, dt: 0}
-    , ee = new EE
-    , stream = null
-    , lastPageX, lastPageY
-    , needsFullscreen = false
-    , mouseDownMS
-
-  ael.call(el, 'mousedown', onmousedown, false)
-  ael.call(el, 'mouseup', onmouseup, false)
-  ael.call(body, 'mousemove', onmove, false)
-
-  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
-
-  for(var i = 0, len = vendors.length; i < len; ++i) {
-    ael.call(doc, vendors[i]+'pointerlockchange', onpointerlockchange)
-    ael.call(doc, vendors[i]+'pointerlockerror', onpointerlockerror)
-  }
-
-  ee.release = release
-  ee.target = pointerlockelement
-  ee.request = onmousedown
-  ee.destroy = function() {
-    rel.call(el, 'mouseup', onmouseup, false)
-    rel.call(el, 'mousedown', onmousedown, false)
-    rel.call(el, 'mousemove', onmove, false)
-  }
-
-  if(!shim) {
-    setTimeout(function() {
-      ee.emit('error', new Error('pointer lock is not supported'))
-    }, 0)
-  }
-  return ee
-
-  function onmousedown(ev) {
-    if(pointerlockelement()) {
-      return
-    }
-    mouseDownMS = +new Date
-    rpl.call(el)
-  }
-
-  function onmouseup(ev) {
-    if(!needsFullscreen) {
-      return
-    }
-
-    ee.emit('needs-fullscreen')
-    needsFullscreen = false
-  }
-
-  function onpointerlockchange(ev) {
-    if(!pointerlockelement()) {
-      if(stream) release()
-      return
-    }
-
-    stream = new Stream
-    stream.readable = true
-    stream.initial = {x: lastPageX, y: lastPageY, t: Date.now()}
-
-    ee.emit('attain', stream)
-  }
-
-  function onpointerlockerror(ev) {
-    var dt = +(new Date) - mouseDownMS
-    if(dt < 100) {
-      // we errored immediately, we need to do fullscreen first.
-      needsFullscreen = true
-      return
-    }
-
-    if(stream) {
-      stream.emit('error', ev)
-      stream = null
-    }
-  }
-
-  function release() {
-    ee.emit('release')
-
-    if(stream) {
-      stream.emit('end')
-      stream.readable = false
-      stream.emit('close')
-      stream = null
-    }
-
-    var pel = pointerlockelement()
-    if(!pel) {
-      return
-    }
-
-    (doc.exitPointerLock ||
-    doc.mozExitPointerLock ||
-    doc.webkitExitPointerLock ||
-    doc.msExitPointerLock ||
-    doc.oExitPointerLock).call(doc)
-  }
-
-  function onmove(ev) {
-    lastPageX = ev.pageX
-    lastPageY = ev.pageY
-
-    if(!stream) return
-
-    // we're reusing a single object
-    // because I'd like to avoid piling up
-    // a ton of objects for the garbage
-    // collector.
-    out.dx =
-      ev.movementX || ev.webkitMovementX ||
-      ev.mozMovementX || ev.msMovementX ||
-      ev.oMovementX || 0
-
-    out.dy = 
-      ev.movementY || ev.webkitMovementY ||
-      ev.mozMovementY || ev.msMovementY ||
-      ev.oMovementY || 0
-
-    out.dt = Date.now() - stream.initial.t
-
-    ee.emit('data', out)
-    stream.emit('data', out)
-  }
-
-  function pointerlockelement() {
-    return 0 ||
-      doc.pointerLockElement ||
-      doc.mozPointerLockElement ||
-      doc.webkitPointerLockElement ||
-      doc.msPointerLockElement ||
-      doc.oPointerLockElement ||
-      null
-  }
-}
-
-function shim(el) {
-  return el.requestPointerLock ||
-    el.webkitRequestPointerLock ||
-    el.mozRequestPointerLock ||
-    el.msRequestPointerLock ||
-    el.oRequestPointerLock ||
-    null
-}
-
-},{"events":7,"stream":13}],40:[function(require,module,exports){
-module.exports = fullscreen
-fullscreen.available = available
-
-var EE = require('events').EventEmitter
-
-function available() {
-  return !!shim(document.body)
-}
-
-function fullscreen(el) {
-  var ael = el.addEventListener || el.attachEvent
-    , doc = el.ownerDocument
-    , body = doc.body
-    , rfs = shim(el)
-    , ee = new EE
-
-  var vendors = ['', 'webkit', 'moz', 'ms', 'o']
-
-  for(var i = 0, len = vendors.length; i < len; ++i) {
-    ael.call(doc, vendors[i]+'fullscreenchange', onfullscreenchange)
-    ael.call(doc, vendors[i]+'fullscreenerror', onfullscreenerror)
-  }
-
-  ee.release = release
-  ee.request = request
-  ee.target = fullscreenelement
-
-  if(!shim) {
-    setTimeout(function() {
-      ee.emit('error', new Error('fullscreen is not supported'))
-    }, 0)
-  }
-  return ee
-
-  function onfullscreenchange() {
-    if(!fullscreenelement()) {
-      return ee.emit('release')
-    }
-    ee.emit('attain')
-  }
-
-  function onfullscreenerror() {
-    ee.emit('error')
-  }
-
-  function request() {
-    return rfs.call(el)
-  }
-
-  function release() {
-    (el.exitFullscreen ||
-    el.exitFullscreen ||
-    el.webkitExitFullScreen ||
-    el.webkitExitFullscreen ||
-    el.mozExitFullScreen ||
-    el.mozExitFullscreen ||
-    el.msExitFullScreen ||
-    el.msExitFullscreen ||
-    el.oExitFullScreen ||
-    el.oExitFullscreen).call(el)
-  } 
-
-  function fullscreenelement() {
-    return 0 ||
-      doc.fullScreenElement ||
-      doc.fullscreenElement ||
-      doc.webkitFullScreenElement ||
-      doc.webkitFullscreenElement ||
-      doc.mozFullScreenElement ||
-      doc.mozFullscreenElement ||
-      doc.msFullScreenElement ||
-      doc.msFullscreenElement ||
-      doc.oFullScreenElement ||
-      doc.oFullscreenElement ||
-      null
-  }
-}
-
-function shim(el) {
-  return (el.requestFullscreen ||
-    el.webkitRequestFullscreen ||
-    el.webkitRequestFullScreen ||
-    el.mozRequestFullscreen ||
-    el.mozRequestFullScreen ||
-    el.msRequestFullscreen ||
-    el.msRequestFullScreen ||
-    el.oRequestFullscreen ||
-    el.oRequestFullScreen)
-}
-
-},{"events":7}],27:[function(require,module,exports){
-module.exports = AABB
-
-var vec3 = require('gl-matrix').vec3
-
-function AABB(pos, vec) {
-  if(!(this instanceof AABB)) {
-    return new AABB(pos, vec)
-  }
-
-  this.base = pos
-  this.vec = vec
-
-  this.mag = vec3.length(this.vec)
-
-  this.max = vec3.create()
-  vec3.add(this.max, this.base, this.vec)
-}
-
-var cons = AABB
-  , proto = cons.prototype
-
-proto.width = function() {
-  return this.vec[0]
-}
-
-proto.height = function() {
-  return this.vec[1]
-}
-
-proto.depth = function() {
-  return this.vec[2]
-}
-
-proto.x0 = function() {
-  return this.base[0]
-}
-
-proto.y0 = function() {
-  return this.base[1]
-}
-
-proto.z0 = function() {
-  return this.base[2]
-}
-
-proto.x1 = function() {
-  return this.max[0]
-}
-
-proto.y1 = function() {
-  return this.max[1]
-}
-
-proto.z1 = function() {
-  return this.max[2]
-}
-
-proto.translate = function(by) {
-  vec3.add(this.max, this.max, by)
-  vec3.add(this.base, this.base, by)
-  return this
-}
-
-proto.expand = function(aabb) {
-  var max = vec3.create()
-    , min = vec3.create()
-
-  vec3.max(max, aabb.max, this.max)
-  vec3.min(min, aabb.base, this.base)
-  vec3.sub(max, max, min)
-
-  return new AABB(min, max)
-}
-
-proto.intersects = function(aabb) {
-  if(aabb.base[0] > this.max[0]) return false
-  if(aabb.base[1] > this.max[1]) return false
-  if(aabb.base[2] > this.max[2]) return false
-  if(aabb.max[0] < this.base[0]) return false
-  if(aabb.max[1] < this.base[1]) return false
-  if(aabb.max[2] < this.base[2]) return false
-
-  return true
-}
-
-proto.union = function(aabb) {
-  if(!this.intersects(aabb)) return null
-
-  var base_x = Math.max(aabb.base[0], this.base[0])
-    , base_y = Math.max(aabb.base[1], this.base[1])
-    , base_z = Math.max(aabb.base[2], this.base[2])
-    , max_x = Math.min(aabb.max[0], this.max[0])
-    , max_y = Math.min(aabb.max[1], this.max[1])
-    , max_z = Math.min(aabb.max[2], this.max[2])
-
-  return new AABB([base_x, base_y, base_z], [max_x - base_x, max_y - base_y, max_z - base_z])
-}
-
-},{"gl-matrix":29}],28:[function(require,module,exports){
-module.exports = physical
-
-var aabb = require('aabb-3d')
-  , THREE = require('three')
-
-function physical(avatar, collidables, dimensions, terminal) {
-  return new Physical(avatar, collidables, dimensions, terminal)
-}
-
-function Physical(avatar, collidables, dimensions, terminal) {
-  this.avatar = avatar
-  this.terminal = terminal || new THREE.Vector3(30, 5.6, 30)
-  this.dimensions = dimensions = dimensions || [1, 1, 1]
-  this._aabb = aabb([0, 0, 0], dimensions)
-  this.resting = {x: false, y: false, z: false}
-  this.collidables = collidables
-  this.friction = new THREE.Vector3(1, 1, 1)
-
-  this.rotation = this.avatar.rotation
-  this.default_friction = 1
-
-  // default yaw/pitch/roll controls to the avatar
-  this.yaw =
-  this.pitch =
-  this.roll = avatar
-
-  this.forces = new THREE.Vector3(0, 0, 0)
-  this.attractors = []
-  this.acceleration = new THREE.Vector3(0, 0, 0)
-  this.velocity = new THREE.Vector3(0, 0, 0)
-}
-
-var cons = Physical
-  , proto = cons.prototype
-  , axes = ['x', 'y', 'z']
-  , abs = Math.abs
-
-// make these *once*, so we're not generating
-// garbage for every object in the game.
-var WORLD_DESIRED = new THREE.Vector3(0, 0, 0)
-  , DESIRED = new THREE.Vector3(0, 0, 0)
-  , START = new THREE.Vector3(0, 0, 0)
-  , END = new THREE.Vector3(0, 0, 0)
-  , DIRECTION = new THREE.Vector3()
-  , LOCAL_ATTRACTOR = new THREE.Vector3()
-  , TOTAL_FORCES = new THREE.Vector3()
-
-proto.applyWorldAcceleration = applyTo('acceleration')
-proto.applyWorldVelocity = applyTo('velocity')
-
-function applyTo(which) {
-  return function(world) {
-    var local = this.avatar.worldToLocal(world)
-    this[which].x += local.x
-    this[which].y += local.y
-    this[which].z += local.z
-  }
-}
-
-proto.tick = function(dt) {
-  var forces = this.forces
-    , acceleration = this.acceleration
-    , velocity = this.velocity
-    , terminal = this.terminal
-    , friction = this.friction
-    , desired = DESIRED
-    , world_desired = WORLD_DESIRED
-    , bbox
-    , pcs
-  TOTAL_FORCES.multiplyScalar(0)
-
-  desired.x =
-  desired.y =
-  desired.z =
-  world_desired.x =
-  world_desired.y =
-  world_desired.z = 0
-
-  for(var i = 0; i < this.attractors.length; i++) {
-    var distance_factor = this.avatar.position.distanceToSquared(this.attractors[i])
-    LOCAL_ATTRACTOR.copy(this.attractors[i])
-    LOCAL_ATTRACTOR = this.avatar.worldToLocal(LOCAL_ATTRACTOR)
-
-    DIRECTION.sub(LOCAL_ATTRACTOR, this.avatar.position)
-
-    DIRECTION.divideScalar(DIRECTION.length() * distance_factor)
-    DIRECTION.multiplyScalar(this.attractors[i].mass)
-
-    TOTAL_FORCES.addSelf(DIRECTION)
-  }
-  
-  if(!this.resting.x) {
-    acceleration.x /= 8 * dt
-    acceleration.x += TOTAL_FORCES.x * dt
-    acceleration.x += forces.x * dt
-
-    velocity.x += acceleration.x * dt
-    velocity.x *= friction.x
-
-    if(abs(velocity.x) < terminal.x) {
-      desired.x = (velocity.x * dt)
-    } else if(velocity.x !== 0) {
-      desired.x = (velocity.x / abs(velocity.x)) * terminal.x
-    }
-  } else {
-    acceleration.x = velocity.x = 0
-  }
-  if(!this.resting.y) {
-    acceleration.y /= 8 * dt
-    acceleration.y += TOTAL_FORCES.y * dt
-    acceleration.y += forces.y * dt
-
-    velocity.y += acceleration.y * dt
-    velocity.y *= friction.y
-
-    if(abs(velocity.y) < terminal.y) {
-      desired.y = (velocity.y * dt)
-    } else if(velocity.y !== 0) {
-      desired.y = (velocity.y / abs(velocity.y)) * terminal.y
-    }
-  } else {
-    acceleration.y = velocity.y = 0
-  }
-  if(!this.resting.z) {
-    acceleration.z /= 8 * dt
-    acceleration.z += TOTAL_FORCES.z * dt
-    acceleration.z += forces.z * dt
-
-    velocity.z += acceleration.z * dt
-    velocity.z *= friction.z
-
-    if(abs(velocity.z) < terminal.z) {
-      desired.z = (velocity.z * dt)
-    } else if(velocity.z !== 0) {
-      desired.z = (velocity.z / abs(velocity.z)) * terminal.z
-    }
-  } else {
-    acceleration.z = velocity.z = 0
-  }
-  
-  START.copy(this.avatar.position)
-  this.avatar.translateX(desired.x)
-  this.avatar.translateY(desired.y)
-  this.avatar.translateZ(desired.z)
-  END.copy(this.avatar.position)
-  this.avatar.position.copy(START)
-  world_desired.x = END.x - START.x
-  world_desired.y = END.y - START.y
-  world_desired.z = END.z - START.z
-  this.friction.x =
-  this.friction.y =
-  this.friction.z = this.default_friction
-
-  // run collisions
-  this.resting.x =
-  this.resting.y =
-  this.resting.z = false
-
-  bbox = this.aabb()
-  pcs = this.collidables
-
-  for(var i = 0, len = pcs.length; i < len; ++i) {
-    if(pcs[i] !== this) {
-      pcs[i].collide(this, bbox, world_desired, this.resting)
-    }
-  }
-
-  // apply translation
-  this.avatar.position.x += world_desired.x
-  this.avatar.position.y += world_desired.y
-  this.avatar.position.z += world_desired.z
-}
-
-proto.subjectTo = function(force) {
-  this.forces.x += force[0]
-  this.forces.y += force[1]
-  this.forces.z += force[2]
-  return this
-}
-
-proto.removeForce = function(force) {
-  this.forces.x -= force[0]
-  this.forces.y -= force[1]
-  this.forces.z -= force[2]
-  return this
-}
-
-proto.attractTo = function(vector, mass) {
-  vector.mass = mass
-  this.attractors.push(vector)
-}
-
-proto.aabb = function() {
-  return aabb(
-      [this.avatar.position.x, this.avatar.position.y, this.avatar.position.z]
-    , this.dimensions
-  )
-}
-
-// no object -> object collisions for now, thanks
-proto.collide = function(other, bbox, world_vec, resting) {
-  return
-}
-
-proto.atRestX = function() {
-  return this.resting.x
-}
-
-proto.atRestY = function() {
-  return this.resting.y
-}
-
-proto.atRestZ = function() {
-  return this.resting.z
-}
-
-},{"aabb-3d":27,"three":19}],42:[function(require,module,exports){
+},{"events":7,"aabb-3d":21}],42:[function(require,module,exports){
 var EventEmitter = require('events').EventEmitter;
 
 module.exports = function (elem) {
@@ -44712,270 +44721,7 @@ module.exports={
   ]
 }
 
-},{}],44:[function(require,module,exports){
-module.exports = Tree
-
-var aabb = require('aabb-3d')
-
-function Tree(size, bbox, parent) {
-  this.listeners = {}
-  this.size = size
-  this.bbox = bbox
-  this.parent = parent
-  this.children = []
-}
-
-var cons = Tree
-  , proto = cons.prototype
-
-proto.add = function(event, bbox, listener) {
-  if(!this.parent && !this.contains(bbox)) {
-    return this.expand(bbox).add(event, bbox, listener)
-  }
-
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    if(this.children[i].contains(bbox)) {
-      return this.children[i].add(event, bbox, listener)
-    }
-  }
-
-  var size = this.size / 2
-
-  if(size > this.min_size && bbox.vec[0] < size && bbox.vec[1] < size && bbox.vec[2] < size) {
-    // if it fits into a child node, make that childnode
-    if(Math.floor(bbox.x0() / size) === Math.floor(bbox.x1() / size) &&
-       Math.floor(bbox.y0() / size) === Math.floor(bbox.y1() / size) &&
-       Math.floor(bbox.z0() / size) === Math.floor(bbox.z1() / size)) {
-      var inst = new this.constructor(
-          size
-        , aabb([
-              Math.floor(bbox.x0() / size) * size
-            , Math.floor(bbox.y0() / size) * size
-            , Math.floor(bbox.z0() / size) * size
-            ]
-          , [size, size, size]
-          )
-        , this
-      )
-      this.children.push(inst)
-      return inst.add(event, bbox, listener)
-    }
-  }
-
-  (this.listeners[event] = this.listeners[event] || [])
-    .push({bbox: bbox, func: listener})
-}
-
-proto.contains = function(bbox) {
-  return bbox.x0() >= this.bbox.x0() &&
-         bbox.y0() >= this.bbox.y0() &&
-         bbox.z0() >= this.bbox.z0() &&
-         bbox.x1() <= this.bbox.x1() &&
-         bbox.y1() <= this.bbox.y1() &&
-         bbox.z1() <= this.bbox.z1()
-}
-
-proto.expand = function(bbox) {
-  var size = this.size
-    , new_size = size * 2
-    , expanded = this.bbox.expand(bbox)
-    , new_i = Math.floor(bbox.x0() / size)
-    , new_j = Math.floor(bbox.y0() / size)
-    , new_k = Math.floor(bbox.z0() / size)
-    , cur_i = Math.floor(this.bbox.x0() / size)
-    , cur_j = Math.floor(this.bbox.y0() / size)
-    , cur_k = Math.floor(this.bbox.z0() / size)
-    , new_base = [
-        new_i - cur_i >= 0 ? cur_i : cur_i - 1
-      , new_j - cur_j >= 0 ? cur_j : cur_j - 1
-      , new_k - cur_k >= 0 ? cur_k : cur_k - 1
-      ].map(function(ii) { return ii * size })
-    , new_bbox = aabb(new_base, [new_size, new_size, new_size])
-    , new_root = new this.constructor(new_size, new_bbox)
-    , self = this
-
-  this.parent = new_root
-  this.grow(this.parent)
-
-  new_root.children.push(self)
-
-  return new_root
-}
-
-proto.remove = function(event, listener) {
-  var list = this.listeners[event]
-  if(list) {
-    for(var i = 0, len = list.length; i < len; ++i) {
-      if(list[i].func === listener)
-        break
-    }
-
-    if(i !== len) {
-      list.splice(i, 1)
-    }
-  }
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    this.children[i].remove(event, listener)
-  }
-}
-
-proto.send = function(event, bbox, args) {
-  for(var i = 0, len = this.children.length; i < len; ++i) {
-    if(bbox.intersects(this.children[i].bbox)) {
-      this.children[i].send(event, bbox, args)
-    }
-  }
-
-  var list = this.listeners[event]
-  if(!list) {
-    return
-  }
-
-  for(var i = 0, len = list.length; i < len; ++i) {
-    if(list[i].bbox.intersects(bbox)) {
-      list[i].func.apply(null, args)
-    }
-  }
-}
-
-},{"aabb-3d":27}],31:[function(require,module,exports){
-var events = require('events')
-var inherits = require('inherits')
-
-module.exports = function(opts) {
-  return new Chunker(opts)
-}
-
-module.exports.Chunker = Chunker
-
-function Chunker(opts) {
-  this.distance = opts.chunkDistance || 2
-  this.chunkSize = opts.chunkSize || 32
-  this.cubeSize = opts.cubeSize || 25
-  this.generateVoxelChunk = opts.generateVoxelChunk
-  this.chunks = {}
-  this.meshes = {}
-
-  if (this.chunkSize & this.chunkSize-1 !== 0)
-    throw new Error('chunkSize must be a power of 2')
-  var bits = 0;
-  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
-  this.chunkBits = bits - 1;
-}
-
-inherits(Chunker, events.EventEmitter)
-
-Chunker.prototype.nearbyChunks = function(position, distance) {
-  var current = this.chunkAtPosition(position)
-  var x = current[0]
-  var y = current[1]
-  var z = current[2]
-  var dist = distance || this.distance
-  var nearby = []
-  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
-    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
-      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
-        nearby.push([cx, cy, cz])
-      }
-    }
-  }
-  return nearby
-}
-
-Chunker.prototype.requestMissingChunks = function(position) {
-  var self = this
-  this.nearbyChunks(position).map(function(chunk) {
-    if (!self.chunks[chunk.join('|')]) {
-      self.emit('missingChunk', chunk)
-    }
-  })
-}
-
-Chunker.prototype.getBounds = function(x, y, z) {
-  var bits = this.chunkBits
-  var low = [x << bits, y << bits, z << bits]
-  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
-  return [low, high]
-}
-
-Chunker.prototype.generateChunk = function(x, y, z) {
-  var self = this
-  var bounds = this.getBounds(x, y, z)
-  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
-  var position = [x, y, z]
-  chunk.position = position
-  this.chunks[position.join('|')] = chunk
-  return chunk
-}
-
-Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
-  var bits = this.chunkBits;
-  var cx = x >> bits;
-  var cy = y >> bits;
-  var cz = z >> bits;
-  var chunkPos = [cx, cy, cz];
-  return chunkPos;
-}
-
-Chunker.prototype.chunkAtPosition = function(position) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(position[0] / cubeSize)
-  var y = Math.floor(position[1] / cubeSize)
-  var z = Math.floor(position[2] / cubeSize)
-  var chunkPos = this.chunkAtCoordinates(x, y, z)
-  return chunkPos
-};
-
-Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
-  var bits = this.chunkBits
-  var mask = (1 << bits) - 1
-  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
-  return vidx
-}
-
-Chunker.prototype.voxelIndexFromPosition = function(pos) {
-  var v = this.voxelVector(pos)
-  return this.voxelIndex(v)
-}
-
-Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
-  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
-  var chunk = this.chunks[ckey]
-  if (!chunk) return false
-  var vidx = this.voxelIndexFromCoordinates(x, y, z)
-  var v = chunk.voxels[vidx]
-  if (typeof val !== 'undefined') {
-    chunk.voxels[vidx] = val
-  }
-  return v
-}
-
-Chunker.prototype.voxelAtPosition = function(pos, val) {
-  var cubeSize = this.cubeSize;
-  var x = Math.floor(pos[0] / cubeSize)
-  var y = Math.floor(pos[1] / cubeSize)
-  var z = Math.floor(pos[2] / cubeSize)
-  var v = this.voxelAtCoordinates(x, y, z, val)
-  return v;
-}
-
-// deprecated
-Chunker.prototype.voxelIndex = function(voxelVector) {
-  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
-  return vidx
-}
-
-// deprecated
-Chunker.prototype.voxelVector = function(pos) {
-  var cubeSize = this.cubeSize
-  var mask = (1 << this.chunkBits) - 1
-  var vx = (Math.floor(pos[0] / cubeSize)) & mask
-  var vy = (Math.floor(pos[1] / cubeSize)) & mask
-  var vz = (Math.floor(pos[2] / cubeSize)) & mask
-  return [vx, vy, vz]
-};
-
-},{"events":7,"inherits":11}],49:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 //Naive meshing (with face culling)
 function CulledMesh(volume, dims) {
   //Precalculate direction vectors for convenience
@@ -45433,7 +45179,270 @@ if(exports) {
   exports.mesher = StupidMesh;
 }
 
-},{}],41:[function(require,module,exports){
+},{}],31:[function(require,module,exports){
+var events = require('events')
+var inherits = require('inherits')
+
+module.exports = function(opts) {
+  return new Chunker(opts)
+}
+
+module.exports.Chunker = Chunker
+
+function Chunker(opts) {
+  this.distance = opts.chunkDistance || 2
+  this.chunkSize = opts.chunkSize || 32
+  this.cubeSize = opts.cubeSize || 25
+  this.generateVoxelChunk = opts.generateVoxelChunk
+  this.chunks = {}
+  this.meshes = {}
+
+  if (this.chunkSize & this.chunkSize-1 !== 0)
+    throw new Error('chunkSize must be a power of 2')
+  var bits = 0;
+  for (var size = this.chunkSize; size > 0; size >>= 1) bits++;
+  this.chunkBits = bits - 1;
+}
+
+inherits(Chunker, events.EventEmitter)
+
+Chunker.prototype.nearbyChunks = function(position, distance) {
+  var current = this.chunkAtPosition(position)
+  var x = current[0]
+  var y = current[1]
+  var z = current[2]
+  var dist = distance || this.distance
+  var nearby = []
+  for (var cx = (x - dist); cx !== (x + dist); ++cx) {
+    for (var cy = (y - dist); cy !== (y + dist); ++cy) {
+      for (var cz = (z - dist); cz !== (z + dist); ++cz) {
+        nearby.push([cx, cy, cz])
+      }
+    }
+  }
+  return nearby
+}
+
+Chunker.prototype.requestMissingChunks = function(position) {
+  var self = this
+  this.nearbyChunks(position).map(function(chunk) {
+    if (!self.chunks[chunk.join('|')]) {
+      self.emit('missingChunk', chunk)
+    }
+  })
+}
+
+Chunker.prototype.getBounds = function(x, y, z) {
+  var bits = this.chunkBits
+  var low = [x << bits, y << bits, z << bits]
+  var high = [(x+1) << bits, (y+1) << bits, (z+1) << bits]
+  return [low, high]
+}
+
+Chunker.prototype.generateChunk = function(x, y, z) {
+  var self = this
+  var bounds = this.getBounds(x, y, z)
+  var chunk = this.generateVoxelChunk(bounds[0], bounds[1], x, y, z)
+  var position = [x, y, z]
+  chunk.position = position
+  this.chunks[position.join('|')] = chunk
+  return chunk
+}
+
+Chunker.prototype.chunkAtCoordinates = function(x, y, z) {
+  var bits = this.chunkBits;
+  var cx = x >> bits;
+  var cy = y >> bits;
+  var cz = z >> bits;
+  var chunkPos = [cx, cy, cz];
+  return chunkPos;
+}
+
+Chunker.prototype.chunkAtPosition = function(position) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(position[0] / cubeSize)
+  var y = Math.floor(position[1] / cubeSize)
+  var z = Math.floor(position[2] / cubeSize)
+  var chunkPos = this.chunkAtCoordinates(x, y, z)
+  return chunkPos
+};
+
+Chunker.prototype.voxelIndexFromCoordinates = function(x, y, z) {
+  var bits = this.chunkBits
+  var mask = (1 << bits) - 1
+  var vidx = (x & mask) + ((y & mask) << bits) + ((z & mask) << bits * 2)
+  return vidx
+}
+
+Chunker.prototype.voxelIndexFromPosition = function(pos) {
+  var v = this.voxelVector(pos)
+  return this.voxelIndex(v)
+}
+
+Chunker.prototype.voxelAtCoordinates = function(x, y, z, val) {
+  var ckey = this.chunkAtCoordinates(x, y, z).join('|')
+  var chunk = this.chunks[ckey]
+  if (!chunk) return false
+  var vidx = this.voxelIndexFromCoordinates(x, y, z)
+  var v = chunk.voxels[vidx]
+  if (typeof val !== 'undefined') {
+    chunk.voxels[vidx] = val
+  }
+  return v
+}
+
+Chunker.prototype.voxelAtPosition = function(pos, val) {
+  var cubeSize = this.cubeSize;
+  var x = Math.floor(pos[0] / cubeSize)
+  var y = Math.floor(pos[1] / cubeSize)
+  var z = Math.floor(pos[2] / cubeSize)
+  var v = this.voxelAtCoordinates(x, y, z, val)
+  return v;
+}
+
+// deprecated
+Chunker.prototype.voxelIndex = function(voxelVector) {
+  var vidx = this.voxelIndexFromCoordinates(voxelVector[0], voxelVector[1], voxelVector[2])
+  return vidx
+}
+
+// deprecated
+Chunker.prototype.voxelVector = function(pos) {
+  var cubeSize = this.cubeSize
+  var mask = (1 << this.chunkBits) - 1
+  var vx = (Math.floor(pos[0] / cubeSize)) & mask
+  var vy = (Math.floor(pos[1] / cubeSize)) & mask
+  var vz = (Math.floor(pos[2] / cubeSize)) & mask
+  return [vx, vy, vz]
+};
+
+},{"events":7,"inherits":17}],45:[function(require,module,exports){
+module.exports = Tree
+
+var aabb = require('aabb-3d')
+
+function Tree(size, bbox, parent) {
+  this.listeners = {}
+  this.size = size
+  this.bbox = bbox
+  this.parent = parent
+  this.children = []
+}
+
+var cons = Tree
+  , proto = cons.prototype
+
+proto.add = function(event, bbox, listener) {
+  if(!this.parent && !this.contains(bbox)) {
+    return this.expand(bbox).add(event, bbox, listener)
+  }
+
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    if(this.children[i].contains(bbox)) {
+      return this.children[i].add(event, bbox, listener)
+    }
+  }
+
+  var size = this.size / 2
+
+  if(size > this.min_size && bbox.vec[0] < size && bbox.vec[1] < size && bbox.vec[2] < size) {
+    // if it fits into a child node, make that childnode
+    if(Math.floor(bbox.x0() / size) === Math.floor(bbox.x1() / size) &&
+       Math.floor(bbox.y0() / size) === Math.floor(bbox.y1() / size) &&
+       Math.floor(bbox.z0() / size) === Math.floor(bbox.z1() / size)) {
+      var inst = new this.constructor(
+          size
+        , aabb([
+              Math.floor(bbox.x0() / size) * size
+            , Math.floor(bbox.y0() / size) * size
+            , Math.floor(bbox.z0() / size) * size
+            ]
+          , [size, size, size]
+          )
+        , this
+      )
+      this.children.push(inst)
+      return inst.add(event, bbox, listener)
+    }
+  }
+
+  (this.listeners[event] = this.listeners[event] || [])
+    .push({bbox: bbox, func: listener})
+}
+
+proto.contains = function(bbox) {
+  return bbox.x0() >= this.bbox.x0() &&
+         bbox.y0() >= this.bbox.y0() &&
+         bbox.z0() >= this.bbox.z0() &&
+         bbox.x1() <= this.bbox.x1() &&
+         bbox.y1() <= this.bbox.y1() &&
+         bbox.z1() <= this.bbox.z1()
+}
+
+proto.expand = function(bbox) {
+  var size = this.size
+    , new_size = size * 2
+    , expanded = this.bbox.expand(bbox)
+    , new_i = Math.floor(bbox.x0() / size)
+    , new_j = Math.floor(bbox.y0() / size)
+    , new_k = Math.floor(bbox.z0() / size)
+    , cur_i = Math.floor(this.bbox.x0() / size)
+    , cur_j = Math.floor(this.bbox.y0() / size)
+    , cur_k = Math.floor(this.bbox.z0() / size)
+    , new_base = [
+        new_i - cur_i >= 0 ? cur_i : cur_i - 1
+      , new_j - cur_j >= 0 ? cur_j : cur_j - 1
+      , new_k - cur_k >= 0 ? cur_k : cur_k - 1
+      ].map(function(ii) { return ii * size })
+    , new_bbox = aabb(new_base, [new_size, new_size, new_size])
+    , new_root = new this.constructor(new_size, new_bbox)
+    , self = this
+
+  this.parent = new_root
+  this.grow(this.parent)
+
+  new_root.children.push(self)
+
+  return new_root
+}
+
+proto.remove = function(event, listener) {
+  var list = this.listeners[event]
+  if(list) {
+    for(var i = 0, len = list.length; i < len; ++i) {
+      if(list[i].func === listener)
+        break
+    }
+
+    if(i !== len) {
+      list.splice(i, 1)
+    }
+  }
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    this.children[i].remove(event, listener)
+  }
+}
+
+proto.send = function(event, bbox, args) {
+  for(var i = 0, len = this.children.length; i < len; ++i) {
+    if(bbox.intersects(this.children[i].bbox)) {
+      this.children[i].send(event, bbox, args)
+    }
+  }
+
+  var list = this.listeners[event]
+  if(!list) {
+    return
+  }
+
+  for(var i = 0, len = list.length; i < len; ++i) {
+    if(list[i].bbox.intersects(bbox)) {
+      list[i].func.apply(null, args)
+    }
+  }
+}
+
+},{"aabb-3d":21}],40:[function(require,module,exports){
 module.exports = dragstream
 
 var Stream = require('stream')
@@ -45501,7 +45510,108 @@ function dragstream(el) {
   }
 }
 
-},{"stream":13,"domnode-dom":53,"through":54}],37:[function(require,module,exports){
+},{"stream":29,"domnode-dom":53,"through":54}],54:[function(require,module,exports){
+(function(process){var Stream = require('stream')
+
+// through
+//
+// a stream that does nothing but re-emit the input.
+// useful for aggregating a series of changing but not ending streams into one stream)
+
+
+
+exports = module.exports = through
+through.through = through
+
+//create a readable writable stream.
+
+function through (write, end) {
+  write = write || function (data) { this.emit('data', data) }
+  end = end || function () { this.emit('end') }
+
+  var ended = false, destroyed = false
+  var stream = new Stream(), buffer = []
+  stream.buffer = buffer
+  stream.readable = stream.writable = true
+  stream.paused = false
+  stream.write = function (data) {
+    write.call(this, data)
+    return !stream.paused
+  }
+
+  function drain() {
+    while(buffer.length && !stream.paused) {
+      var data = buffer.shift()
+      if(null === data)
+        return stream.emit('end')
+      else
+        stream.emit('data', data)
+    }
+  }
+
+  stream.queue = function (data) {
+    buffer.push(data)
+    drain()
+  }
+
+  //this will be registered as the first 'end' listener
+  //must call destroy next tick, to make sure we're after any
+  //stream piped from here.
+  //this is only a problem if end is not emitted synchronously.
+  //a nicer way to do this is to make sure this is the last listener for 'end'
+
+  stream.on('end', function () {
+    stream.readable = false
+    if(!stream.writable)
+      process.nextTick(function () {
+        stream.destroy()
+      })
+  })
+
+  function _end () {
+    stream.writable = false
+    end.call(stream)
+    if(!stream.readable)
+      stream.destroy()
+  }
+
+  stream.end = function (data) {
+    if(ended) return
+    ended = true
+    if(arguments.length) stream.write(data)
+    _end() // will emit or queue
+  }
+
+  stream.destroy = function () {
+    if(destroyed) return
+    destroyed = true
+    ended = true
+    buffer.length = 0
+    stream.writable = stream.readable = false
+    stream.emit('close')
+  }
+
+  stream.pause = function () {
+    if(stream.paused) return
+    stream.paused = true
+    stream.emit('pause')
+  }
+  stream.resume = function () {
+    if(stream.paused) {
+      stream.paused = false
+    }
+    drain()
+    //may have become paused again,
+    //as drain emits 'data'.
+    if(!stream.paused)
+      stream.emit('drain')
+  }
+  return stream
+}
+
+
+})(require("__browserify_process"))
+},{"stream":29,"__browserify_process":6}],37:[function(require,module,exports){
 var voxelMesh = require('voxel-mesh');
 var voxel = require('voxel');
 
@@ -45622,108 +45732,7 @@ ChunkMatrix.prototype._update = function (ci) {
     this.emit('update', chunk, ckey);
 };
 
-},{"events":7,"./indexer":36,"voxel":38,"voxel-mesh":55,"inherits":11}],54:[function(require,module,exports){
-(function(process){var Stream = require('stream')
-
-// through
-//
-// a stream that does nothing but re-emit the input.
-// useful for aggregating a series of changing but not ending streams into one stream)
-
-
-
-exports = module.exports = through
-through.through = through
-
-//create a readable writable stream.
-
-function through (write, end) {
-  write = write || function (data) { this.emit('data', data) }
-  end = end || function () { this.emit('end') }
-
-  var ended = false, destroyed = false
-  var stream = new Stream(), buffer = []
-  stream.buffer = buffer
-  stream.readable = stream.writable = true
-  stream.paused = false
-  stream.write = function (data) {
-    write.call(this, data)
-    return !stream.paused
-  }
-
-  function drain() {
-    while(buffer.length && !stream.paused) {
-      var data = buffer.shift()
-      if(null === data)
-        return stream.emit('end')
-      else
-        stream.emit('data', data)
-    }
-  }
-
-  stream.queue = function (data) {
-    buffer.push(data)
-    drain()
-  }
-
-  //this will be registered as the first 'end' listener
-  //must call destroy next tick, to make sure we're after any
-  //stream piped from here.
-  //this is only a problem if end is not emitted synchronously.
-  //a nicer way to do this is to make sure this is the last listener for 'end'
-
-  stream.on('end', function () {
-    stream.readable = false
-    if(!stream.writable)
-      process.nextTick(function () {
-        stream.destroy()
-      })
-  })
-
-  function _end () {
-    stream.writable = false
-    end.call(stream)
-    if(!stream.readable)
-      stream.destroy()
-  }
-
-  stream.end = function (data) {
-    if(ended) return
-    ended = true
-    if(arguments.length) stream.write(data)
-    _end() // will emit or queue
-  }
-
-  stream.destroy = function () {
-    if(destroyed) return
-    destroyed = true
-    ended = true
-    buffer.length = 0
-    stream.writable = stream.readable = false
-    stream.emit('close')
-  }
-
-  stream.pause = function () {
-    if(stream.paused) return
-    stream.paused = true
-    stream.emit('pause')
-  }
-  stream.resume = function () {
-    if(stream.paused) {
-      stream.paused = false
-    }
-    drain()
-    //may have become paused again,
-    //as drain emits 'data'.
-    if(!stream.paused)
-      stream.emit('drain')
-  }
-  return stream
-}
-
-
-})(require("__browserify_process"))
-},{"stream":13,"__browserify_process":5}],53:[function(require,module,exports){
+},{"events":7,"./indexer":36,"voxel-mesh":55,"voxel":38,"inherits":17}],53:[function(require,module,exports){
 module.exports = require('./lib/index')
 
 },{"./lib/index":56}],55:[function(require,module,exports){
@@ -45986,236 +45995,7 @@ Chunker.prototype.voxelVector = function(pos) {
   return {x: Math.abs(vx), y: Math.abs(vy), z: Math.abs(vz)}
 };
 
-},{"events":7,"inherits":11}],56:[function(require,module,exports){
-var WriteStream = require('./writable')
-  , ReadStream = require('./readable')
-  , DOMStream = {}
-
-DOMStream.WriteStream = WriteStream
-DOMStream.ReadStream = ReadStream
-
-DOMStream.createAppendStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.APPEND
-    , mimetype
-  )
-}
-
-DOMStream.createWriteStream = function(el, mimetype) {
-  return new DOMStream.WriteStream(
-      el
-    , DOMStream.WriteStream.WRITE
-    , mimetype
-  )
-}
-
-DOMStream.createReadStream =
-DOMStream.createEventStream = function(el, type, preventDefault) {
-  preventDefault = preventDefault === undefined ? true : preventDefault
-
-  return new DOMStream.ReadStream(
-      el
-    , type
-    , preventDefault
-  )
-}
-
-module.exports = DOMStream
-
-
-},{"./writable":58,"./readable":59}],58:[function(require,module,exports){
-module.exports = DOMStream
-
-var Stream = require('stream').Stream
-
-function DOMStream(el, mode, mimetype) {
-  this.el = el
-  this.mode = mode
-  this.mimetype = mimetype || 'text/html'
-
-  Stream.call(this)
-}
-
-var cons = DOMStream
-  , proto = cons.prototype = new Stream
-
-proto.constructor = cons
-
-cons.APPEND = 0
-cons.WRITE = 1
-
-proto.writable = true
-
-proto.setMimetype = function(mime) {
-  this.mimetype = mime
-}
-
-proto.write = function(data) {
-  var result = (this.mode === cons.APPEND) ? this.append(data) : this.insert(data)
-  this.emit('data', this.el.childNodes)
-  return result
-}
-
-proto.end = function() {
-
-}
-
-proto.insert = function(data) {
-  this.el.innerHTML = ''
-  return this.append(data)
-}
-
-proto.append = function(data) {
-  var result = this[this.resolveMimetypeHandler()](data)
-
-  for(var i = 0, len = result.length; i < len; ++i) {
-    this.el.appendChild(result[i])
-  }
-
-  return true
-}
-
-proto.resolveMimetypeHandler = function() {
-  var type = this.mimetype.replace(/(\/\w)/, function(x) {
-    return x.slice(1).toUpperCase()
-  })
-  type = type.charAt(0).toUpperCase() + type.slice(1)
-
-  return 'construct'+type
-}
-
-proto.constructTextHtml = function(data) {
-  var isTableFragment = /(tr|td|th)/.test(data) && !/table/.test(data)
-    , div
-
-  if(isTableFragment) {
-    // wuh-oh.
-    div = document.createElement('table')
-  }
-
-  div = div || document.createElement('div')
-  div.innerHTML = data 
-
-  return [].slice.call(div.childNodes)
-}
-
-proto.constructTextPlain = function(data) {
-  var textNode = document.createTextNode(data)
-
-  return [textNode]
-}
-
-},{"stream":13}],59:[function(require,module,exports){
-module.exports = DOMStream
-
-var Stream = require('stream').Stream
-
-var listener = function(el, type, onmsg) {
-  return el.addEventListener(type, onmsg, false)
-}
-
-if(typeof $ !== 'undefined')
-  listener = function(el, type, onmsg) {
-    return el = $(el)[type](onmsg)
-  }
-
-if(typeof document !== 'undefined' && !document.createElement('div').addEventListener)
-  listener = function(el, type, onmsg) {
-    return el.attachEvent('on'+type, onmsg)
-  }
-
-function DOMStream(el, eventType, shouldPreventDefault) {
-  this.el = el
-  this.eventType = eventType
-  this.shouldPreventDefault = shouldPreventDefault
-
-  var self = this
-
-  if(el && this.eventType)
-    listener(
-        this.el
-      , this.eventType
-      , function() { return self.listen.apply(self, arguments) }
-    )
-
-  Stream.call(this)
-}
-
-var cons = DOMStream
-  , proto = cons.prototype = new Stream
-
-proto.constructor = cons
-
-proto.listen = function(ev) { 
-  if(this.shouldPreventDefault)
-    ev.preventDefault ? ev.preventDefault() : (ev.returnValue = false)
-
-  var collectData = 
-    this.eventType === 'submit' ||
-    this.eventType === 'change' ||
-    this.eventType === 'keydown' ||
-    this.eventType === 'keyup' ||
-    this.eventType === 'input'
-
-  if(collectData) {
-    if(this.el.tagName.toUpperCase() === 'FORM')
-      return this.handleFormSubmit(ev)
-
-    return this.emit('data', valueFromElement(this.el))
-  }
-
-  this.emit('data', ev) 
-}
-
-proto.handleFormSubmit = function(ev) {
-  var elements = []
-
-  if(this.el.querySelectorAll) {
-    elements = this.el.querySelectorAll('input,textarea,select')
-  } else {
-    var inputs = {'INPUT':true, 'TEXTAREA':true, 'SELECT':true}
-
-    var recurse = function(el) {
-      for(var i = 0, len = el.childNodes.length; i < len; ++i) {
-        if(el.childNodes[i].tagName) {
-          if(inputs[el.childNodes[i].tagName.toUpperCase()]) {
-            elements.push(el)
-          } else {
-            recurse(el.childNodes[i])
-          }
-        }
-      }
-    }
-
-    recurse(this.el)
-  }
-
-  var output = {}
-    , attr
-    , val
-
-  for(var i = 0, len = elements.length; i < len; ++i) {
-    attr = elements[i].getAttribute('name')
-    val = valueFromElement(elements[i])
-
-    output[attr] = val
-  }
-
-  return this.emit('data', output)
-}
-
-function valueFromElement(el) {
-  switch(el.getAttribute('type')) {
-    case 'radio':
-      return el.checked ? el.value : null
-    case 'checkbox':
-      return 'data', el.checked
-  }
-  return el.value
-}
-
-},{"stream":13}],57:[function(require,module,exports){
+},{"events":7,"inherits":17}],57:[function(require,module,exports){
 (function(){
 var window = window || {};
 var self = self || {};
@@ -82706,5 +82486,234 @@ if (typeof exports !== 'undefined') {
 }
 
 })()
-},{}]},{},[2])
+},{}],56:[function(require,module,exports){
+var WriteStream = require('./writable')
+  , ReadStream = require('./readable')
+  , DOMStream = {}
+
+DOMStream.WriteStream = WriteStream
+DOMStream.ReadStream = ReadStream
+
+DOMStream.createAppendStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.APPEND
+    , mimetype
+  )
+}
+
+DOMStream.createWriteStream = function(el, mimetype) {
+  return new DOMStream.WriteStream(
+      el
+    , DOMStream.WriteStream.WRITE
+    , mimetype
+  )
+}
+
+DOMStream.createReadStream =
+DOMStream.createEventStream = function(el, type, preventDefault) {
+  preventDefault = preventDefault === undefined ? true : preventDefault
+
+  return new DOMStream.ReadStream(
+      el
+    , type
+    , preventDefault
+  )
+}
+
+module.exports = DOMStream
+
+
+},{"./writable":58,"./readable":59}],58:[function(require,module,exports){
+module.exports = DOMStream
+
+var Stream = require('stream').Stream
+
+function DOMStream(el, mode, mimetype) {
+  this.el = el
+  this.mode = mode
+  this.mimetype = mimetype || 'text/html'
+
+  Stream.call(this)
+}
+
+var cons = DOMStream
+  , proto = cons.prototype = new Stream
+
+proto.constructor = cons
+
+cons.APPEND = 0
+cons.WRITE = 1
+
+proto.writable = true
+
+proto.setMimetype = function(mime) {
+  this.mimetype = mime
+}
+
+proto.write = function(data) {
+  var result = (this.mode === cons.APPEND) ? this.append(data) : this.insert(data)
+  this.emit('data', this.el.childNodes)
+  return result
+}
+
+proto.end = function() {
+
+}
+
+proto.insert = function(data) {
+  this.el.innerHTML = ''
+  return this.append(data)
+}
+
+proto.append = function(data) {
+  var result = this[this.resolveMimetypeHandler()](data)
+
+  for(var i = 0, len = result.length; i < len; ++i) {
+    this.el.appendChild(result[i])
+  }
+
+  return true
+}
+
+proto.resolveMimetypeHandler = function() {
+  var type = this.mimetype.replace(/(\/\w)/, function(x) {
+    return x.slice(1).toUpperCase()
+  })
+  type = type.charAt(0).toUpperCase() + type.slice(1)
+
+  return 'construct'+type
+}
+
+proto.constructTextHtml = function(data) {
+  var isTableFragment = /(tr|td|th)/.test(data) && !/table/.test(data)
+    , div
+
+  if(isTableFragment) {
+    // wuh-oh.
+    div = document.createElement('table')
+  }
+
+  div = div || document.createElement('div')
+  div.innerHTML = data 
+
+  return [].slice.call(div.childNodes)
+}
+
+proto.constructTextPlain = function(data) {
+  var textNode = document.createTextNode(data)
+
+  return [textNode]
+}
+
+},{"stream":29}],59:[function(require,module,exports){
+module.exports = DOMStream
+
+var Stream = require('stream').Stream
+
+var listener = function(el, type, onmsg) {
+  return el.addEventListener(type, onmsg, false)
+}
+
+if(typeof $ !== 'undefined')
+  listener = function(el, type, onmsg) {
+    return el = $(el)[type](onmsg)
+  }
+
+if(typeof document !== 'undefined' && !document.createElement('div').addEventListener)
+  listener = function(el, type, onmsg) {
+    return el.attachEvent('on'+type, onmsg)
+  }
+
+function DOMStream(el, eventType, shouldPreventDefault) {
+  this.el = el
+  this.eventType = eventType
+  this.shouldPreventDefault = shouldPreventDefault
+
+  var self = this
+
+  if(el && this.eventType)
+    listener(
+        this.el
+      , this.eventType
+      , function() { return self.listen.apply(self, arguments) }
+    )
+
+  Stream.call(this)
+}
+
+var cons = DOMStream
+  , proto = cons.prototype = new Stream
+
+proto.constructor = cons
+
+proto.listen = function(ev) { 
+  if(this.shouldPreventDefault)
+    ev.preventDefault ? ev.preventDefault() : (ev.returnValue = false)
+
+  var collectData = 
+    this.eventType === 'submit' ||
+    this.eventType === 'change' ||
+    this.eventType === 'keydown' ||
+    this.eventType === 'keyup' ||
+    this.eventType === 'input'
+
+  if(collectData) {
+    if(this.el.tagName.toUpperCase() === 'FORM')
+      return this.handleFormSubmit(ev)
+
+    return this.emit('data', valueFromElement(this.el))
+  }
+
+  this.emit('data', ev) 
+}
+
+proto.handleFormSubmit = function(ev) {
+  var elements = []
+
+  if(this.el.querySelectorAll) {
+    elements = this.el.querySelectorAll('input,textarea,select')
+  } else {
+    var inputs = {'INPUT':true, 'TEXTAREA':true, 'SELECT':true}
+
+    var recurse = function(el) {
+      for(var i = 0, len = el.childNodes.length; i < len; ++i) {
+        if(el.childNodes[i].tagName) {
+          if(inputs[el.childNodes[i].tagName.toUpperCase()]) {
+            elements.push(el)
+          } else {
+            recurse(el.childNodes[i])
+          }
+        }
+      }
+    }
+
+    recurse(this.el)
+  }
+
+  var output = {}
+    , attr
+    , val
+
+  for(var i = 0, len = elements.length; i < len; ++i) {
+    attr = elements[i].getAttribute('name')
+    val = valueFromElement(elements[i])
+
+    output[attr] = val
+  }
+
+  return this.emit('data', output)
+}
+
+function valueFromElement(el) {
+  switch(el.getAttribute('type')) {
+    case 'radio':
+      return el.checked ? el.value : null
+    case 'checkbox':
+      return 'data', el.checked
+  }
+  return el.value
+}
+
+},{"stream":29}]},{},[2])
 ;
