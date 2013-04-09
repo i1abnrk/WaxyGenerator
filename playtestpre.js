@@ -2,8 +2,9 @@
 var createGame = require('voxel-engine')
 var texturePath = require('painterly-textures')(__dirname)
 var terrain = require('./waxy')
-var generator = terrain.iterate
-var game = createGame({texturePath: texturePath,
+ generator = terrain.iterate
+var game = createGame({
+  texturePath: texturePath,
   generate: generator,
   texturePath: texturePath,
   materials: ['grass', 'dirt', 'grass_dirt', 'obsidian', 'whitewool', 'brick'],

@@ -12,7 +12,7 @@ var Point = (function(dims) {
   this.z = dims.z || 0
 //streamline most used function
 this.t=function(d){var x=(d.x||0)+this.x,y=(d.y||0)+this.y,z=(d.z||0)+this.z;return new Point(x,y,z)}
-  this.translate = function(d) {
+  this.translate = function(delta) {
     //validate(delta, 'Point')
     return t(delta)
   }
@@ -40,13 +40,11 @@ var ConnectedPoint = (function(dimensions){
 })//end ConnectedP
 //TODO: debug flag w verbosity
 //TODO: validate objects
-//TODO: y=height, z=depth
-//a working set, rectangular prism
 
+//a working set, rectangular prism
 var BoundingBox = (function(dims) {
   //console.log('BoundingBox')
-  //validate(dimensions[0], 'Point')
-  //validate(dimensions[1], 'Point')
+  //treat a Point arg as BoundingBox of size 0
   if(dims.length === 1) {
     dims[1] = new Point()
   }
@@ -76,6 +74,7 @@ var BoundingBox = (function(dims) {
     }
     return bResult
   }
+
   this.intersects = function(other) {
     var bResult = false
     if(other.x !== 'undefined') {
@@ -436,23 +435,27 @@ var assertContains = function(obj, array) {
   if (!test) { console.log('Element ' +obj+ ' not defined in ' +array.join())}
 }
 
-this.generator = new WaxyGenerator({
-    initialTemp:1.0, fillPercent: 0.1, conductAir: THERM_CON_AIR, 
-    conductWax: THERM_CON_WAX, freezing: 0.1,
-    floorTemp:0.0, bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
-        new Point({x:32,y:32,z:32})]),
-    materials:['dirt', 'obsidian', 'whitewool', 'brick'],
-    propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
-        new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
-        new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
-})
 
 //data hook for voxel.js
 this.iterate = function(x,y,z) {
+var generator = new WaxyGenerator({
+  initialTemp:1.0,
+  fillPercent: 0.35,
+  conductAir: THERM_CON_AIR,
+  conductWax: THERM_CON_WAX,
+  freezing: 0.1,
+  floorTemp:0.0,
+  bounds: new BoundingBox([new Point({x:0,y:0,z:0}),
+      new Point({x:32,y:32,z:32})]),
+  materials:['dirt', 'obsidian', 'whitewool', 'brick'],
+  propertyList: [new MapProperty({key:TERR_MAP_PROP, type:'int', defaultValue: 0}),
+      new MapProperty({key: TEMP_MAP_PROP, type:'double', defaultValue: 0.1}), 
+      new MapProperty({key: GRND_MAP_PROP, type:'boolean', defaultValue: false})]
+})
   //generate a new chunk for each call
-  this.generator.generate()
+  generator.generate()
   //return the generated terrain map chunk
-  return this.generator.data.map(x,y,z,TERR_MAP_PROP)
+  return generator.data.map(x,y,z,TERR_MAP_PROP)
 }
 
 //this.generator.generate()
