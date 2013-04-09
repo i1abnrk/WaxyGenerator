@@ -1,0 +1,15 @@
+[0.0.1b]
+added package.json
+added changelog
+[0.0.1a]
+initial commit of playtesting app for version 0.0.1a
+generates 1 voxel chunk then pukes
+[0.0.1]
+Modified Readme, added waxy.js and waxyTest.html
+fixed a big goof in WG.grounded
+another big goof in WG.grounded
+see if terrain AND y===0 in WG.grounded
+add conductivity of wax
+updated README and small fixes to updateTemps and move
+fixed bugs, added external data hook
+add voxel-engine and painterly-texture modules
